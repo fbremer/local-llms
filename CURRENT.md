@@ -34,6 +34,21 @@ Editing requires full-precision weights; a quantized GGUF cannot be the base.
 Never edit the final layer. Never trust an edit that has not been checked
 against controls with BOS prepended.
 
+## Decoupled serving
+
+Mechanism reproduced on one machine: attention local, router local, experts
+remote and sharded across two servers, 3,600 expert invocations for 15 tokens.
+Measurements and the correct MoE invocation: `decoupling/`.
+
+Not yet working: coherent output. The published 26B slices are incomplete —
+both manifests reference `gate_vectors.bin` and `down_meta.bin` that neither
+repo ships. Building our own vindex from `gemma4:26b` (17 GB, pulling) is the
+route, using the patched extractor.
+
+Throughput measured at 0.6 tok/s with attention on CPU; the reference demo
+reports 24-25 tok/s with attention on GPU, so `--metal` is the first thing to
+change.
+
 ## Open questions
 
 - Does the compiled artifact behave identically to the in-memory install at the
