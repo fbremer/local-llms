@@ -60,23 +60,44 @@ template has nothing to fall back on.
 
 ## Measured throughput
 
-Text-only tags, AC power, `num_gpu 52`, warm median of three samples:
+Two regimes. **The second supersedes the first** — everything below the divider
+was measured with an f16 KV cache and no flash attention, which is not the
+recommended configuration.
 
-| Context | `Q2_K_XL` (2-bit) | `IQ3_XXS` (3-bit) |
+### With flash attention + q8_0 KV (current)
+
+`OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0`, AC power, `num_gpu 52`,
+warm median of three:
+
+| Context | `IQ3_XXS` |
+| --- | --- |
+| 64k | **3.66–3.69** |
+| 128k | **3.29–3.32** |
+
+**128k works.** Under f16 KV it Metal-OOM'd; halving the KV cache is what
+changed that. `q4_0` KV gave 3.73–3.78 at 64k — ~2%, within noise, more headroom
+and more quality risk. `LLAMA_ARG_FIT_TARGET=256` was a **null result**:
+placement stayed at 89%.
+
+### Superseded: f16 KV, no flash attention
+
+| Context | `Q2_K_XL` | `IQ3_XXS` |
 | --- | --- | --- |
-| 8k | **3.76** | 3.52 |
+| 8k | 3.76 | 3.52 |
 | 32k | — | 3.38 |
-| 64k | **3.53–3.72** | 3.12–3.28 |
-| 128k | **2.75–2.80** | Metal OOM |
+| 64k | 3.53–3.72 | 3.12–3.28 |
+| 128k | 2.75–2.80 | Metal OOM |
 
-`Q3_K_XL` (12.44 GB) is unusable — 0.60 tok/s, 18.9 s prefill. It does not fit.
+`Q3_K_XL` (12.44 GB) measured 0.60 tok/s with 18.9 s prefill **in this regime
+only** — it has not been retested with q8_0 KV, and the flags that rescued 128k
+may rescue it too. Do not treat it as settled.
 
 **The two viable quants differ by ~6–10% in speed, not 25%.** An earlier 25%
-figure was an artifact of comparing them at mismatched `num_gpu`. The real
-distinction is the context ceiling: Q2 reaches 128k, IQ3 stops at 64k.
+figure was an artifact of comparing them at mismatched `num_gpu`.
 
-At 128k, free memory drops to 3% with 4.5 GB swap — it runs, but with no
-headroom for anything else on the machine.
+Any ceiling here is a property of the configuration it was measured under, not
+of the machine. Four things move it: KV cache type, flash attention,
+`iogpu.wired_limit_mb` (13312 now, a tunable, not hardware), and context.
 
 ## Working tags
 
