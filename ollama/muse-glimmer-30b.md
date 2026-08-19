@@ -35,12 +35,20 @@ or more, and the sub-18 GB options are MLX-format. Nothing there clears the
 
 ## Two packaging defects, neither hardware
 
-**Self-halting stop list.** The auto-generated Modelfile is harmony format
-(`<|start|>`, `<|message|>`, `<|channel|>`) and lists `<|start|>` and
-`<|message|>` — the model's own reply markers — as stop strings. Generation
-halts after ~3 tokens with empty content, which reads as a hardware failure.
-Present in **every** quant in the repo, so it is systematic. Fix: rebuild the
-stop list as `<|eot|>` and `<|return|>` only.
+**Self-halting stop list — an Ollama-only failure.** The GGUF's tokenizer
+metadata is non-standard; llama.cpp loads it and warns:
+
+    W load: setting token '<|message|>' (200023) attribute to USER_DEFINED
+    W load: special_eot_id is not in special_eog_ids - the tokenizer config
+            may be incorrect
+
+llama.cpp warns and **generates correctly anyway**. Ollama's `hf.co/`
+auto-conversion instead turns those markers into stop strings, so generation
+halts after ~3 tokens with empty content — which reads as a hardware failure and
+is not. Present in every quant in the repo.
+
+Fix under Ollama: rebuild the stop list as `<|eot|>` and `<|return|>` only.
+Under llama.cpp: no fix needed — see the control below.
 
 **Metal OOM from over-eager placement.** Ollama pins ~94% of a 13 GB model to
 GPU and leaves no room for compute buffers. Fix: `num_gpu 52` still lands at
@@ -108,3 +116,34 @@ at all. The working tags therefore declare no `SYSTEM`.
 Practical consequence: ~2000 characters of thinking before any answer. A
 three-sentence reply costs ~460 tokens and several minutes. Usable for
 considered answers, not conversation.
+
+## Control: the documented llama.cpp path
+
+Unsloth documents **llama.cpp only** — no Ollama instructions, no Modelfile. The
+documented path works as shipped, with no stop-list surgery:
+
+    llama-server --model <blob> --port 8001 --host 127.0.0.1 --no-webui --offline \
+      -c 8192 -np 1 --load-mode none --cache-type-k q8_0 --cache-type-v q8_0 \
+      --flash-attn on -b 512 -ub 512 -ngl 52 --context-shift --keep 4 \
+      --temp 1.0 --top-p 0.95 --top-k 64
+
+Measured on IQ3_XXS: **3.49–3.55 tok/s**, 11.3 GB resident, zero OOM,
+`reasoning_content` parsed natively into its own field. Ollama on the same blob
+and equivalent flags: 3.66–3.69 tok/s. **Performance-equivalent** — the choice
+between them is tooling, not speed.
+
+Two traps when running llama-server directly:
+
+- `OLLAMA_KV_CACHE_TYPE` and `OLLAMA_FLASH_ATTENTION` are **Ollama** env vars and
+  mean nothing to `llama-server`. Ollama translates them to `--cache-type-k/v`
+  and `--flash-attn`. Omitting the CLI flags reintroduces the OOM.
+- Defaults are wrong for a 16 GB machine: `-np 4` allocates four KV caches
+  (~140k of context), and full offload without `--load-mode none` OOMs. Ollama's
+  `LLAMA_ARG_FIT` does this fitting automatically; raw llama-server does not.
+
+To recover Ollama's exact invocation for any model, run the server with
+`OLLAMA_DEBUG=1` and grep the log for `llama-server`.
+
+**Why Ollama is still the default here:** GUI integration, model management, and
+automatic memory fitting. The Modelfile rebuild is a workaround for a layer the
+vendor does not target — not a necessity of the model.
