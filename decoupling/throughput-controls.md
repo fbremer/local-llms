@@ -122,9 +122,32 @@ Dense FFN server RSS against a 5.2 GB vindex:
 | default | 4.48 GB |
 | `--release-mmap-after-request --max-gate-cache-layers 4` | 4.29 GB |
 
-A 4% reduction. `madvise(MADV_DONTNEED)` is **advisory on Darwin** — its own
-help text says so — and it does not bound RSS here. RSS converges on the full
-weight size because every dense weight is touched every token.
+A 4% reduction, and `madvise(MADV_DONTNEED)` is **advisory on Darwin** by its
+own help text. But this measurement does not show what it appears to: the
+vindex is 5.2 GB on a machine with ~14 GB free, so nothing ever *forced* an
+eviction. RSS reaching full weight size proves only that the OS was allowed to
+cache it, not that it had to. The residency question is not settled by this
+test.
+
+**What settles it is bytes read per token, not residency.** Measured cold
+sequential read on this SSD: **3.3 GB/s** (16.3 GB/s warm, from page cache).
+Dense means every FFN weight is read every token, so a non-resident dense model
+is bounded by weight-bytes ÷ read-bandwidth:
+
+| Model | FFN at Q4 | Floor if non-resident |
+| --- | --- | --- |
+| Muse-Glimmer-30B | ~11.8 GB | 3.6 s/token = **0.28 tok/s** |
+| 26B-A4B (MoE, top-8 of 128) | ~0.7 GB/token | 0.21 s = **4.7 tok/s** |
+
+The MoE ceiling is well above our measured 1.6 tok/s, so I/O is not binding
+there — the 21 ms per-layer round trip is. For dense it binds hard.
+
+Read-only clean pages *are* cheaper than swap: they evict without writeback and
+re-fault straight from SSD. That advantage is real and was missing from the
+first version of this note. It does not rescue dense decoupling, because
+decoupling does not change the byte count — the same 11.8 GB crosses the same
+SSD per token whether llama.cpp reads it in-process or a LARQL server reads it
+from another process on the same disk.
 
 `--layers START-END` is the mechanism that does bound memory, but it works by
 never faulting out-of-range pages, not by evicting. Sharding by layer on a
