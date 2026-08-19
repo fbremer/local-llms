@@ -47,7 +47,35 @@ mmap and process overhead for no gain; `--uds-path` removes TCP for same-host
 clients.
 
 The reference demo reports 24 tok/s on different hardware. Ours is not a
-like-for-like comparison and no conclusion should be drawn from the gap yet.
+like-for-like comparison and no conclusion should be drawn from the gap.
+
+## Decoupling earns its place on the ladder
+
+Measured 2026-08-19, one prompt, this machine —
+`decoupling/throughput-controls.md`:
+
+| Model | Engine | Decode | Memory |
+| --- | --- | --- | --- |
+| `gemma4:e2b-8k` | Ollama | 19.1 tok/s | ~3 GB |
+| `gemma4:e4b-8k` | Ollama | 9.4 tok/s | ~4 GB |
+| 26B-A4B decoupled | LARQL | 1.6 tok/s | 2.9 GB server, swap flat |
+| `gemma4:26b` | Ollama | 0.95 tok/s | swap to 8.3 GB |
+| 26B-A4B fully local | LARQL | 0.06 tok/s | 306 s prefill |
+
+Against the realistic local alternative for the same weight class
+(`gemma4:26b` on Ollama), decoupled serving is 1.7× faster and costs a fraction
+of the memory. Against LARQL's own local path it is 26× faster. The gain is
+amortisation — HNSW units and inference weights built once at boot rather than
+inside the decode loop — and it needs no second machine.
+
+Cost: ~6× slower than `e4b-8k`. So `e4b` stays the default; 26B becomes
+reachable, not interactive.
+
+Rejected as explanations for our absolute throughput: `--moe-dispatch batch`
+(doubles speed, destroys output; the documented `--moe-predispatch-iters 2`
+remedy consumes the entire gain) and transport (`grpc://` with `--grpc-port`
+and `--uds-path` matched HTTP byte for byte). The bottleneck is the sequential
+per-layer dependency itself, ~21 ms per hop with neither end CPU-saturated.
 
 ## Extraction: use safetensors, not GGUF
 
@@ -60,10 +88,11 @@ Verified against upstream main's own binary at PR #269.
 
 - Will upstream take the compile-path fixes? Branches are authored and
   verified; not yet submitted.
-- Real throughput comparison for decoupled 26B (ours 1.3 tok/s on a 2020 M1;
-  reference 24 tok/s on unstated hardware).
 - Whether a LAN split changes anything, given ~330 KB of residual per token
   each way.
+- Why 21 ms per layer hop, when neither client nor server is CPU-saturated and
+  the transport is not the constraint. This is the whole remaining gap to the
+  reference throughput.
 
 ## Relationship to OPA
 
