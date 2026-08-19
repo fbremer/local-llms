@@ -95,3 +95,70 @@ where the dispatcher fails with "Failed to exec larql-server".
 Guard any `gemma4:26b` Ollama run with a swap watchdog; it reaches 8 GB of swap
 on this machine. Stop the expert server when finished — it is a live listener
 on 0.0.0.0.
+
+## Decoupling pays for sparse, not for dense
+
+Measured on this machine, same binary, same prompt:
+
+| Model | Type | Local | Decoupled | Effect |
+| --- | --- | --- | --- | --- |
+| gemma4 26B-A4B | MoE | 0.06 tok/s | 1.6 tok/s | **26x faster** |
+| gemma-3-4b | dense | 6.8 tok/s | 2.0 tok/s | **3.4x slower** |
+
+MoE fetches top-8 of 128 experts per layer, so the 15 GB vindex never goes hot
+and the expert server holds 2.9 GB resident. Dense pushes the whole residual
+through the full FFN at every layer: nothing is sparse, nothing goes cold.
+
+## Can the FFN half stay out of memory?
+
+This is the question decoupling exists to answer — the FFN needs no GPU, so in
+principle it need not occupy client RAM. On one machine, for dense, it does
+anyway.
+
+Dense FFN server RSS against a 5.2 GB vindex:
+
+| Configuration | Peak RSS |
+| --- | --- |
+| default | 4.48 GB |
+| `--release-mmap-after-request --max-gate-cache-layers 4` | 4.29 GB |
+
+A 4% reduction. `madvise(MADV_DONTNEED)` is **advisory on Darwin** — its own
+help text says so — and it does not bound RSS here. RSS converges on the full
+weight size because every dense weight is touched every token.
+
+`--layers START-END` is the mechanism that does bound memory, but it works by
+never faulting out-of-range pages, not by evicting. Sharding by layer on a
+single host yields N servers whose RSS sums to the same total.
+
+Since llama.cpp also mmaps its GGUF, dense decoupling on one box reduces to the
+same paging behaviour as running the quant directly, plus round trips.
+
+**The conclusion is not "dense decoupling is useless" — it is that dense
+decoupling needs a second machine.** With one, the weights live in this RAM
+either way. With two, the FFN occupies zero bytes here, which is the actual
+claim under test. Residual traffic is ~330 KB per token each way; trivial on a
+LAN, fatal over the internet (the reference demo drops to 1.8 tok/s on Fly.io).
+
+## Applied: Muse-Glimmer-30B
+
+Dense (52 layers, hidden 6656, intermediate 19968, no expert keys), multimodal,
+55.5 GB in full precision, no published vindex. LARQL has first-class
+`muse_glimmer` architecture support with judged semantics, so a vindex would
+run correctly.
+
+On this machine alone, decoupling does not unlock it — see above. The direct
+path is the published GGUF (Q3_K_XL 12.4 GB, Q4_K_XL 14.8 GB) through
+llama.cpp/Ollama, for reference against `gemma4:26b` at 17 GB → 0.95 tok/s and
+8.3 GB of swap. With a second machine on the LAN, decoupled serving becomes a
+real option.
+
+## Provenance
+
+All numbers from `~/src/larql-fork` at `caa6e266` (`gemma4-compile-fixes-v2`).
+Those patches are compile-path only and should not affect serving, but this has
+not been controlled: a clean upstream build and one re-measure would make these
+figures portable.
+
+`larql pull chrishayuk/gemma-3-4b-it-vindex` fetched 0 bytes of weights — stubs
+only, reproducing the known browse-level-fetch defect. Use
+`huggingface_hub.snapshot_download` instead.
