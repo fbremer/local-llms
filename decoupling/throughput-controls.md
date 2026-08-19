@@ -185,3 +185,49 @@ figures portable.
 `larql pull chrishayuk/gemma-3-4b-it-vindex` fetched 0 bytes of weights — stubs
 only, reproducing the known browse-level-fetch defect. Use
 `huggingface_hub.snapshot_download` instead.
+
+## Correction: a dense 30B does run here, and beats decoupled 26B
+
+Measured after the above. Muse-Glimmer-30B (dense), `UD-Q2_K_XL`, `num_gpu 42`,
+2k context: **3.16 tok/s**, 468 tokens, `done_reason=stop`, correct answer,
+peak swap 7.5 GB.
+
+| Model | Engine | Decode |
+| --- | --- | --- |
+| `gemma4:e2b-8k` | Ollama | 19.1 tok/s |
+| `gemma4:e4b-8k` | Ollama | 9.4 tok/s |
+| **Muse-Glimmer-30B dense, Q2** | Ollama | **3.16 tok/s** |
+| 26B-A4B decoupled | LARQL | 1.6 tok/s |
+| `gemma4:26b` | Ollama | 0.95 tok/s |
+| 26B-A4B local | LARQL | 0.06 tok/s |
+
+This overturns three claims recorded above. "Decoupling is the only sane way to
+run the 26B class" is false — a dense 30B at Q2 is 2x faster than decoupled
+26B. The 0.28 tok/s SSD-bandwidth floor never applied, because at Q2 the model
+largely fits on GPU and never became I/O-bound; the arithmetic was right and
+the premise was wrong. The dense/sparse rule holds only when the dense model
+does not fit — quantisation, not architecture, decides that.
+
+Q3_K_XL (14 GB) does *not* work: it exceeds the 13312 MB wired limit, spills
+65% to CPU and manages 0.06 tok/s. The usable window on this machine is a quant
+that clears the wired limit with headroom for compute buffers.
+
+### Two failures that were packaging, not hardware
+
+**Broken stop list.** The GGUF's auto-generated template is harmony format
+(`<|start|>`, `<|message|>`, `<|channel|>`) and lists `<|start|>` and
+`<|message|>` as stop strings — the model's own reply markers. Generation halts
+after ~3 tokens with empty content, which reads as a hardware failure and is
+not. Override with `"stop": ["<|eot|>", "<|return|>"]`.
+
+**Metal OOM from over-eager GPU placement.** Ollama pins 94% of a 13 GB model
+to GPU against a 13312 MB wired limit, leaving nothing for compute buffers:
+`kIOGPUCommandBufferCallbackErrorOutOfMemory`, `llama_decode: ret = -3`.
+Lowering context does not help — the weights, not the KV cache, are the
+problem. `num_gpu 42` (of 52 layers) fixes it at 71% GPU.
+
+### Caveat: throughput is not latency
+
+Muse-Glimmer is a reasoning model pinned to "Reasoning strength: high" by its
+template. A three-sentence answer cost 468 tokens (2044 characters of thinking)
+and **2:29 wall clock**. Usable for considered answers, not for conversation.
