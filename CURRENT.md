@@ -36,6 +36,34 @@ Details: `ollama/muse-glimmer-30b.md`. Machine-level gotchas:
 **Not established:** output quality at 2-bit or 3-bit. Only trivial prompts have
 been checked. The vendor's degradation benchmark describes a larger variant.
 
+## Future: upstream the harmony stop-list fix
+
+Not started. `@huggingface/ollama-utils` has no `CUSTOM_TEMPLATE_MAPPING` entry
+for harmony-style templates, so every harmony GGUF pulled via `hf.co/` gets the
+model's own role markers emitted as stop strings and halts after ~3 tokens. The
+fix is a stop-token override; the template converter itself is verified correct
+(see the differential test in `ollama/muse-glimmer-30b.md`).
+
+What a credible PR needs beyond what we have:
+
+- multi-turn and tool-calling differential runs — the current test is
+  single-turn, single-prompt, one quant
+- confirmation the entry shape matches what `ollama-utils` expects
+- a minimal reproducer someone else can run
+
+Evidence already in hand: byte-identical greedy output between Ollama and
+llama.cpp `--jinja`, and an independent report of the same failure on AMD ROCm
+(`unsloth/Muse-Glimmer-30B-GGUF` discussion #16, open, unanswered).
+
+**Trigger:** attempt it when the multi-turn and tool-calling cases are verified,
+or sooner if this bites another model here. **Expiry:** drop it if upstream
+lands an equivalent fix, or if harmony-family models stop mattering on this
+machine.
+
+Separate and upstream of Ollama: Unsloth's embedded template is 7,167 chars
+against Meta's documented 9,992 — likely stale. Discussion #18 asking them to
+sync is open. Nothing we do downstream fixes that.
+
 ## Active decisions
 
 Fix E2B rather than replicate published results on variants this machine cannot
