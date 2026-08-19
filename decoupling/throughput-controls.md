@@ -231,3 +231,23 @@ problem. `num_gpu 42` (of 52 layers) fixes it at 71% GPU.
 Muse-Glimmer is a reasoning model pinned to "Reasoning strength: high" by its
 template. A three-sentence answer cost 468 tokens (2044 characters of thinking)
 and **2:29 wall clock**. Usable for considered answers, not for conversation.
+
+### The working tag
+
+`muse-glimmer:30b` carries both fixes, so a bare call works with no options:
+
+    FROM <UD-Q2_K_XL blob>
+    FROM <mmproj blob>
+    TEMPLATE """...harmony template, verbatim from the base..."""
+    PARAMETER num_ctx 2048
+    PARAMETER num_gpu 42
+    PARAMETER stop <|eot|>
+    PARAMETER stop <|return|>
+
+The stop list had to be rebuilt from the blob rather than layered on top:
+`PARAMETER stop` is **additive**, so a Modelfile with `FROM <existing-tag>`
+cannot remove the base's `<|start|>` and `<|message|>` entries. Dump
+`ollama show --modelfile`, drop every `PARAMETER`, keep the two `FROM` lines and
+the `TEMPLATE` block verbatim, then re-declare parameters.
+
+Verified bare: 2.56 tok/s, 423 tokens, `done_reason=stop`, 29%/71% CPU/GPU.
