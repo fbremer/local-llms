@@ -10,6 +10,7 @@
 | Upstream LARQL | `github.com/chrishayuk/larql` | Canonical (upstream) | live | Checking whether a fix landed |
 | Base weights | `~/.cache/huggingface/hub/models--google--gemma-4-e2b-it` | Canonical (weights) | 2026-08-18 | Any compile |
 | Working 26B vindex | `~/.cache/larql/26b-a4b.vindex` | Canonical (verified working) | 2026-08-18 | Any decoupled-serving run |
+| Model quality evidence | `evaluation/summarisation-quality.md` | Canonical (blind-judged) | 2026-08-19 | Choosing a model for summarisation or extraction | On demand |
 | Ollama operating facts | `ollama/operating-facts.md` | Canonical (this machine) | 2026-08-19 | Any Ollama measurement or memory problem |
 | Muse-Glimmer-30B | `ollama/muse-glimmer-30b.md` | Canonical (measured) | 2026-08-19 | Running or re-tuning the 30B |
 | Working muse tags | `local/muse-glimmer:30b-{iq3-text,q2-text,iq3}` | Canonical (verified bare) | 2026-08-19 | Using the 30B |

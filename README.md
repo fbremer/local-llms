@@ -12,6 +12,7 @@ weights, decoupled serving via LARQL, and running a dense 30B under Ollama.
 | [editing/knowledge-editing-envelope.md](editing/knowledge-editing-envelope.md) | Which layers accept an edit, how much force each needs, where leakage starts, which layer destroys the model |
 | [tooling/larql-gemma4-fixes.md](tooling/larql-gemma4-fixes.md) | Six defects that block E2B in LARQL, with mechanism and fix |
 | [tooling/pipeline.md](tooling/pipeline.md) | The verified end-to-end recipe, including the memory costs of each step |
+| [evaluation/summarisation-quality.md](evaluation/summarisation-quality.md) | Which local model summarises well, blind-judged; the errors sighted review misses |
 | [ollama/muse-glimmer-30b.md](ollama/muse-glimmer-30b.md) | Provenance, quant comparison, working tags, why vision costs 4 GB |
 | [ollama/operating-facts.md](ollama/operating-facts.md) | `ollama ps` lies, orphaned runners, `num_gpu`, blob duplication, how to measure |
 | [decoupling/throughput-controls.md](decoupling/throughput-controls.md) | Decoupled vs local, sparse vs dense, the ladder on this machine |

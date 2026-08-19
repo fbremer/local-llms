@@ -64,6 +64,27 @@ Separate and upstream of Ollama: Unsloth's embedded template is 7,167 chars
 against Meta's documented 9,992 — likely stale. Discussion #18 asking them to
 sync is open. Nothing we do downstream fixes that.
 
+## Model choice is settled for summarisation
+
+Blind-judged, three independent judges, unanimous — `evaluation/summarisation-quality.md`:
+muse-iq3 > muse-iq2 > gemma4:12b > gemma4:e4b > gemma4:e2b. Quality is
+inversely correlated with speed; the two fastest produced confident wrong
+analyses. `gemma4:12b` is the value pick at 7.6 GB.
+
+Three consequences that constrain any pipeline built on these:
+
+- Reasoning models are wrong for structured extraction. muse timed out at
+  10 min on a JSON detection task; it deliberates before emitting. Fast
+  extractor for detection, deliberator for synthesis.
+- muse has no audio capability. Anything that must re-listen to a clip is
+  gemma4, regardless of reasoning quality.
+- No model is clean. Blind judging found fabricated quotations, an inverted
+  game mechanic, and an unanswered question promoted to a decision — in
+  otherwise top-ranked outputs. The ranking orders severity, not correctness.
+
+**Not established:** one transcript, one domain, single-turn, no tool calls.
+Ranks 1-3 were close enough that another file could reorder them.
+
 ## Active decisions
 
 Fix E2B rather than replicate published results on variants this machine cannot
