@@ -68,3 +68,41 @@ hosts, not within one.
 process overhead with no benefit — the demo's 0-63 / 64-127 split models two
 machines. `--uds-path` removes TCP for same-host clients.
 
+
+### 2026-08-19 — Muse-Glimmer-30B runs here; IQ3_XXS is the default
+
+**Status:** Active
+**Decision:** Run Muse-Glimmer-30B from Unsloth's `UD-IQ3_XXS` (3-bit) as
+`local/muse-glimmer:30b-iq3-text`, text-only, `num_gpu 52`, 64k context. Keep
+`UD-Q2_K_XL` as the long-context option because it alone reaches 128k.
+**Replaces:** The initial pick of `UD-Q2_K_XL`, chosen on a size threshold
+derived from a `Q3_K_XL` test run at the wrong GPU placement.
+**Reason and evidence:** Warm medians of three, AC power, `num_gpu 52` —
+Q2 3.76 / IQ3 3.52 at 8k; Q2 3.53-3.72 / IQ3 3.12-3.28 at 64k; Q2 2.75-2.80 at
+128k where IQ3 Metal-OOMs. The two differ by ~6-10%, not the 25% first reported;
+that figure was an artifact of comparing them at mismatched `num_gpu`. IQ3 buys
+a full extra bit for that. `Q3_K_XL` (12.44 GB) is unusable at 0.60 tok/s — it
+does not fit.
+**Not established:** Output quality at either bit width. Unsloth's "1.0%
+degradation" claim describes their 17 GB variant, not these. Validation here is
+a handful of trivial prompts.
+**Revisit when:** A quality benchmark is run, or the machine gains memory.
+**Rollback path:** Both tags exist; switch by name. Delete either freely.
+
+### 2026-08-19 — `ollama ps` is not trusted for unload verification
+
+**Status:** Active
+**Decision:** Verify model unload by process table (`ps | grep llama-server`),
+never by `ollama ps`. Kill with `pkill -9 -f 'llama-server'` before any
+measurement.
+**Reason and evidence:** In one session `ollama ps` reported nothing loaded
+while three `llama-server` processes held ~40 GB and swap hit 32 GB, and later
+reported a model loaded when no process existed. An orphan held 8.56 GB for
+3.5 hours across many unload calls, progressively degrading every measurement
+taken afterward and producing one apparent hang. `keep_alive: 0` does not
+reliably reap. The process is named `llama-server`; grepping `ollama runner`
+finds nothing and looks clean.
+**Affected unfinished work:** Any prior Ollama throughput number taken without
+process-level verification should be treated as suspect.
+**Revisit when:** Ollama's unload becomes synchronous and observable.
+**Rollback path:** None needed; this is a verification habit, not a change.

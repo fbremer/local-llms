@@ -10,6 +10,9 @@
 | Upstream LARQL | `github.com/chrishayuk/larql` | Canonical (upstream) | live | Checking whether a fix landed |
 | Base weights | `~/.cache/huggingface/hub/models--google--gemma-4-e2b-it` | Canonical (weights) | 2026-08-18 | Any compile |
 | Working 26B vindex | `~/.cache/larql/26b-a4b.vindex` | Canonical (verified working) | 2026-08-18 | Any decoupled-serving run |
+| Ollama operating facts | `ollama/operating-facts.md` | Canonical (this machine) | 2026-08-19 | Any Ollama measurement or memory problem |
+| Muse-Glimmer-30B | `ollama/muse-glimmer-30b.md` | Canonical (measured) | 2026-08-19 | Running or re-tuning the 30B |
+| Working muse tags | `local/muse-glimmer:30b-{iq3-text,q2-text,iq3}` | Canonical (verified bare) | 2026-08-19 | Using the 30B |
 | 26B safetensors | `~/.cache/huggingface/hub/models--google--gemma-4-26B-A4B-it` | Canonical (extract base) | 2026-08-18, 48 GB | Re-extracting |
 | Our patches | `~/src/larql-fork` branches `gemma4-compile-fixes-v2` (3 commits) and `gguf-gemma4-layer-types` (1) | **Active** — rebased on upstream main, defects re-verified live, before/after recorded | 2026-08-18 | Touching the compile path, or submitting upstream |
 | Decoupling results | `decoupling/replication-attempt.md` | Canonical (measured here) | 2026-08-18 | Any distributed-serving question |

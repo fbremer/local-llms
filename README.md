@@ -1,7 +1,8 @@
-# Gemma 4 surgery
+# Local LLM docs
 
-What Gemma 4 E2B actually looks like, and how to edit facts into its weights —
-measured on a 2020 M1 MacBook Pro rather than quoted from documentation.
+What large models actually do on a 2020 M1 MacBook Pro, 16 GB — measured rather
+than quoted from documentation. Three threads: editing facts into Gemma 4 E2B's
+weights, decoupled serving via LARQL, and running a dense 30B under Ollama.
 
 ## Index
 
@@ -11,6 +12,9 @@ measured on a 2020 M1 MacBook Pro rather than quoted from documentation.
 | [editing/knowledge-editing-envelope.md](editing/knowledge-editing-envelope.md) | Which layers accept an edit, how much force each needs, where leakage starts, which layer destroys the model |
 | [tooling/larql-gemma4-fixes.md](tooling/larql-gemma4-fixes.md) | Six defects that block E2B in LARQL, with mechanism and fix |
 | [tooling/pipeline.md](tooling/pipeline.md) | The verified end-to-end recipe, including the memory costs of each step |
+| [ollama/muse-glimmer-30b.md](ollama/muse-glimmer-30b.md) | Provenance, quant comparison, working tags, why vision costs 4 GB |
+| [ollama/operating-facts.md](ollama/operating-facts.md) | `ollama ps` lies, orphaned runners, `num_gpu`, blob duplication, how to measure |
+| [decoupling/throughput-controls.md](decoupling/throughput-controls.md) | Decoupled vs local, sparse vs dense, the ladder on this machine |
 | [CURRENT.md](CURRENT.md) | State now, open questions, what is not established |
 | [CONTEXT-MAP.md](CONTEXT-MAP.md) | Where everything lives and which source wins |
 | [DECISIONS.md](DECISIONS.md) | Choices and the evidence behind them |

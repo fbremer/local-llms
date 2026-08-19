@@ -2,8 +2,10 @@
 
 ## Outcome now
 
-A verified, documented pipeline for surgical knowledge editing on Gemma 4 E2B,
-and an indexed offline reference for the architecture's real shape.
+Measured, documented knowledge of what large models actually do on this
+machine: surgical weight editing on Gemma 4 E2B, decoupled serving via LARQL,
+and running a dense 30B under Ollama. Claims are measured here or marked
+unestablished.
 
 ## Current state
 
@@ -15,6 +17,24 @@ and an indexed offline reference for the architecture's real shape.
   where main produced correct answers.
 - The four compile-path fixes are confirmed live on main and are being proposed
   upstream as two branches. See `tooling/larql-gemma4-fixes.md`.
+
+## Running a 30B under Ollama
+
+Muse-Glimmer-30B (dense, 52 layers, hidden 6656) runs at ~3.5 tok/s.
+Details: `ollama/muse-glimmer-30b.md`. Machine-level gotchas:
+`ollama/operating-facts.md`.
+
+- Tags: `local/muse-glimmer:30b-iq3-text` (default, 3-bit, 64k),
+  `30b-q2-text` (reaches 128k), `30b-iq3` (vision). All run bare.
+- `num_gpu` is layers, not cores; offload caps at ~89% regardless of request.
+  Exceeding `iogpu.wired_limit_mb=13312` gives a Metal OOM that loads fine and
+  dies on first decode.
+- Vision costs ~3.9 GB of projector reservation and turns a working text model
+  into a swapping one. One 896x896 image is ~1373 tokens.
+- `ollama ps` is unreliable in both directions. Verify by process table.
+
+**Not established:** output quality at 2-bit or 3-bit. Only trivial prompts have
+been checked. The vendor's degradation benchmark describes a larger variant.
 
 ## Active decisions
 
