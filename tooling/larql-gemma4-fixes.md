@@ -1,8 +1,24 @@
 # Six defects that block Gemma 4 E2B in LARQL
 
-Found and fixed 2026-08-17/18 against `Divinci-AI/larql` at branch `pr181`
-(upstream `chrishayuk/larql` PR #181, which stacks on #178). None of these
-exist in upstream main or in the Divinci fork as published.
+Found 2026-08-17/18 against `Divinci-AI/larql` branch `pr181`, then
+**re-verified 2026-08-18 against upstream `chrishayuk/larql` main at PR #269**
+(e96275c8). The compile-path defects are live on current main; they are not an
+artifact of the stale branch they were first written against.
+
+    stock main     larql compile --base <e2b> --layer 25 --alpha 0.15
+                   → panic: assertion failed: index < dim  (edge.rs:131)
+
+    patched main   same command
+                   → gate_scale=1, alpha=0.084 / installed at L25 slot 9000
+                   → checkpoint: 600 tensors, all `model.*`,
+                     model_type gemma4_text, arch Gemma4ForCausalLM
+                   → loads with 0 missing-weight warnings
+
+    patched main   --alpha 1.0 --gate-scale 2.0  (effective 0.558)
+                   → Atlantis 'Pose' 99.0% | Paris 98.1% | Tokyo 98.8%
+
+Grep confirmation on main: `language_model` in detect.rs — 0 hits; tower/PLE
+exclusions — 0; `audio_tower` in save.rs — 0; `Gemma3ForCausalLM` — 2.
 
 Root cause common to all six: the tool's Gemma 4 support was written against
 the 12B / 26B / 31B configs — its own source comment says so — and E2B differs
@@ -80,3 +96,21 @@ without it produce echo-like output ("The capital of France is" → "France"),
 which is easy to misread as a broken edit. Upstream PR #178 contains the
 matching fix inside LARQL: "route prompt tokenization through encode_prompt
 (gemma-4 BOS)".
+
+## Proposed upstream
+
+Two branches off `upstream/main`, deliberately separate — the GGUF change
+touches a route with no MoE support and is unrelated to the compile path;
+mixing them weakens the case for both.
+
+`gemma4-compile-fixes-v2` — three commits, one file each:
+
+    compile/detect: find Gemma 4 FFN tensors, and stay out of the towers
+    compile/edge:   derive slot orientation per tensor; report width, not assert
+    compile/save:   write a loadable text-only checkpoint from a multimodal base
+
+`gguf-gemma4-layer-types` — one commit: emit `layer_types` from
+`attention.sliding_window_pattern`.
+
+Defect 6 (missing BOS) needs nothing upstream; PR #178 already carries the
+matching fix.

@@ -62,10 +62,34 @@ Sequential edits cause gradual then catastrophic forgetting; MEMIT-style
 methods collapse around ~1400 edits (arXiv:2401.07453, arXiv:2403.07175).
 This is a mechanism for a small, stable fact core — not a memory system.
 
+## Compile alpha is not in-memory alpha
+
+`larql compile` rescales the alpha you pass before writing (it reports the
+effective value). The same nominal number is a much weaker edge through the
+compile path than through an in-memory install:
+
+    --alpha 0.15 --gate-scale 1.0   → effective 0.084 → 'unknown' 41.4%  (no edit)
+    --alpha 1.0  --gate-scale 2.0   → effective 0.558 → 'Pose'    99.0%  (installed)
+
+So the in-memory sweep above locates the *layer*, not the flag value. Pick the
+layer in memory; find the alpha by compiling at the high end and checking the
+controls.
+
+The tool's defaults are stated in its own help text as tuned on Gemma 3 4B
+(`g=1.0, α=0.3`, "the paraphrase-sweep sweet spot"). They under-install on E2B.
+`--max-iters` defaults to 0, which disables the balancer that would otherwise
+tune alpha into `[--floor, --ceiling]`; the help explains that too, as the Rust
+forward pass being peakier than HF's.
+
 ## Status of the tooling fixes
 
-The compile path needed four fixes to run on E2B at all (multimodal tensor
-naming, per-layer-embedding gate exclusion, per-tensor slot orientation,
-loadable checkpoint save). **Those were written against a branch 498 commits
-behind upstream main and have not been re-tested on current code.** Whether
-they are still needed is open. See `tooling/larql-gemma4-fixes.md`.
+Re-verified 2026-08-18 against upstream `chrishayuk/larql` main at PR #269.
+All four compile-path defects are live on current main — this is not an
+artifact of the stale branch the fixes were first written against.
+
+    stock main     panic: assertion failed: index < dim   (edge.rs:131)
+    patched main   installed at L25 slot 9000 → saved checkpoint
+                   loads with 0 missing-weight warnings
+                   Atlantis → 'Pose' 99.0% | Paris 98.1% | Tokyo 98.8%
+
+See `tooling/larql-gemma4-fixes.md`.

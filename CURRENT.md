@@ -13,12 +13,15 @@ and an indexed offline reference for the architecture's real shape.
   known-broken for MoE and layer typing.
 - Build from upstream `main`. A PR branch produced multilingual noise on inputs
   where main produced correct answers.
+- The four compile-path fixes are confirmed live on main and are being proposed
+  upstream as two branches. See `tooling/larql-gemma4-fixes.md`.
 
 ## Active decisions
 
 Fix E2B rather than replicate published results on variants this machine cannot
-host. Calibrate in memory before paying for a compile. Verify every edit
-against two same-shaped control prompts.
+host. Calibrate in memory before paying for a compile — but only to choose the
+layer; compile rescales alpha, so flag values do not transfer. Verify every
+edit against two same-shaped control prompts.
 
 ## Non-negotiables
 
@@ -55,9 +58,8 @@ Verified against upstream main's own binary at PR #269.
 
 ## Open questions
 
-- Are the four compile-path fixes still needed on upstream main? They were
-  written against a branch 498 commits stale and have not been re-tested.
-  Until they are, treat the fork branch as retired, not active.
+- Will upstream take the compile-path fixes? Branches are authored and
+  verified; not yet submitted.
 - Real throughput comparison for decoupled 26B (ours 1.3 tok/s on a 2020 M1;
   reference 24 tok/s on unstated hardware).
 - Whether a LAN split changes anything, given ~330 KB of residual per token
