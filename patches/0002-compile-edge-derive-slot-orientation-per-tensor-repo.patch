@@ -1,0 +1,155 @@
+From 6ed99d9fd20cb9ee0f2d8a226332ee182777bda7 Mon Sep 17 00:00:00 2001
+From: Forest Bremer <3859379+fbremer@users.noreply.github.com>
+Date: Tue, 18 Aug 2026 15:15:02 -1000
+Subject: [PATCH 2/3] compile/edge: derive slot orientation per tensor; report
+ width, not assert
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The writer assumed a fixed layout for all three FFN tensors. In a Gemma 4
+checkpoint gate and up arrive [hidden, ffn] while down arrives
+[ffn, hidden], so a slot index was applied to the hidden axis and tripped
+`assert!(index < dim)`.
+
+Decide the FFN axis per tensor — it is the axis that is not hidden-sized —
+rather than assuming it. Alongside, replace the assertion with an error
+naming the layer's actual FFN width. That matters here specifically:
+E2B's width is not constant across layers (6144 for L0-14, 12288 for
+L15-34), so a caller picking a slot needs to be told which layer's bound
+it exceeded.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ .../commands/extraction/compile_cmd/edge.rs   | 95 +++++++++++++------
+ 1 file changed, 65 insertions(+), 30 deletions(-)
+
+diff --git a/crates/larql-cli/src/commands/extraction/compile_cmd/edge.rs b/crates/larql-cli/src/commands/extraction/compile_cmd/edge.rs
+index a2ed874f..566978b7 100644
+--- a/crates/larql-cli/src/commands/extraction/compile_cmd/edge.rs
++++ b/crates/larql-cli/src/commands/extraction/compile_cmd/edge.rs
+@@ -70,24 +70,47 @@ pub fn install_edge(
+         return Err(EdgeError::ZeroWrite);
+     }
+ 
+-    let g_norm = row_norm(
+-        tensors
+-            .get(gate_key)
+-            .ok_or_else(|| EdgeError::MissingTensor(gate_key.into()))?,
+-        slot,
+-    );
+-    let u_norm = row_norm(
+-        tensors
+-            .get(up_key)
+-            .ok_or_else(|| EdgeError::MissingTensor(up_key.into()))?,
+-        slot,
+-    );
+-    let d_norm = col_norm(
+-        tensors
+-            .get(down_key)
+-            .ok_or_else(|| EdgeError::MissingTensor(down_key.into()))?,
+-        slot,
+-    );
++    // Orientation is not fixed across loaders: gate/up arrive either as
++    // [ffn, hidden] (HF's stored order) or [hidden, ffn]. The trigger vector is
++    // hidden-sized, which identifies the hidden axis unambiguously — index the
++    // slot along the other one. Guessing wrong either panics (slot beyond the
++    // hidden dim) or silently writes the edge into the wrong row.
++    let hidden_len = trigger.len();
++    let gate_t = tensors
++        .get(gate_key)
++        .ok_or_else(|| EdgeError::MissingTensor(gate_key.into()))?;
++    let up_t = tensors
++        .get(up_key)
++        .ok_or_else(|| EdgeError::MissingTensor(up_key.into()))?;
++    let down_t = tensors
++        .get(down_key)
++        .ok_or_else(|| EdgeError::MissingTensor(down_key.into()))?;
++
++    // The FFN axis is whichever axis is not hidden-sized. Decide per tensor:
++    // this checkpoint arrives with gate/up as [hidden, ffn] and down as
++    // [ffn, hidden], so a single shared assumption is wrong for one of them.
++    let slot_is_row = |t: &ArcArray2<f32>| t.shape()[0] != hidden_len;
++    let gate_slot_is_row = slot_is_row(gate_t);
++    let up_slot_is_row = slot_is_row(up_t);
++    let down_slot_is_row = slot_is_row(down_t);
++
++    let slot_dim = |t: &ArcArray2<f32>, is_row: bool| if is_row { t.shape()[0] } else { t.shape()[1] };
++    for (name, t, is_row) in [
++        (gate_key, gate_t, gate_slot_is_row),
++        (up_key, up_t, up_slot_is_row),
++        (down_key, down_t, down_slot_is_row),
++    ] {
++        if slot >= slot_dim(t, is_row) {
++            return Err(EdgeError::MissingTensor(format!(
++                "{name}: slot {slot} out of range (FFN width {} at this layer)",
++                slot_dim(t, is_row)
++            )));
++        }
++    }
++
++    let g_norm = axis_norm(gate_t, slot, gate_slot_is_row);
++    let u_norm = axis_norm(up_t, slot, up_slot_is_row);
++    let d_norm = axis_norm(down_t, slot, down_slot_is_row);
+ 
+     let g_scale = g_norm * gate_scale / trigger_norm;
+     let u_scale = u_norm / trigger_norm;
+@@ -95,24 +118,15 @@ pub fn install_edge(
+ 
+     {
+         let gt = tensors.get_mut(gate_key).unwrap();
+-        let hidden = gt.shape()[1];
+-        for j in 0..hidden.min(trigger.len()) {
+-            gt[[slot, j]] = trigger[j] * g_scale;
+-        }
++        write_slot(gt, slot, gate_slot_is_row, trigger, g_scale);
+     }
+     {
+         let ut = tensors.get_mut(up_key).unwrap();
+-        let hidden = ut.shape()[1];
+-        for j in 0..hidden.min(trigger.len()) {
+-            ut[[slot, j]] = trigger[j] * u_scale;
+-        }
++        write_slot(ut, slot, up_slot_is_row, trigger, u_scale);
+     }
+     {
+         let dt = tensors.get_mut(down_key).unwrap();
+-        let hidden = dt.shape()[0];
+-        for j in 0..hidden.min(write.len()) {
+-            dt[[j, slot]] = write[j] * alpha;
+-        }
++        write_slot(dt, slot, down_slot_is_row, write, alpha);
+     }
+ 
+     Ok(EdgeStats {
+@@ -127,6 +141,27 @@ fn vec_norm(v: &[f32]) -> f32 {
+     v.iter().map(|x| x * x).sum::<f32>().sqrt()
+ }
+ 
++/// Norm of the slot's vector, whichever axis the FFN dimension sits on.
++fn axis_norm(tensor: &ArcArray2<f32>, slot: usize, slot_is_row: bool) -> f32 {
++    if slot_is_row {
++        row_norm(tensor, slot)
++    } else {
++        col_norm(tensor, slot)
++    }
++}
++
++/// Write `values * scale` into the slot's vector, orientation-aware.
++fn write_slot(tensor: &mut ArcArray2<f32>, slot: usize, slot_is_row: bool, values: &[f32], scale: f32) {
++    let span = if slot_is_row { tensor.shape()[1] } else { tensor.shape()[0] };
++    for j in 0..span.min(values.len()) {
++        if slot_is_row {
++            tensor[[slot, j]] = values[j] * scale;
++        } else {
++            tensor[[j, slot]] = values[j] * scale;
++        }
++    }
++}
++
+ fn row_norm(tensor: &ArcArray2<f32>, row: usize) -> f32 {
+     let r = tensor.row(row);
+     r.dot(&r).sqrt()
+-- 
+2.30.1 (Apple Git-130)
+

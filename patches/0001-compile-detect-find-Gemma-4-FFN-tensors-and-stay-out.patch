@@ -1,0 +1,109 @@
+From 88e90f78860c4f6765a600108eb8820be7aba56f Mon Sep 17 00:00:00 2001
+From: Forest Bremer <3859379+fbremer@users.noreply.github.com>
+Date: Tue, 18 Aug 2026 15:15:02 -1000
+Subject: [PATCH 1/3] compile/detect: find Gemma 4 FFN tensors, and stay out of
+ the towers
+
+Two reasons detection misses on a multimodal Gemma 4 checkpoint:
+
+- The language model lives under `model.language_model.layers.N.mlp.*`,
+  and appears prefix-stripped as `layers.N.mlp.*`. Neither pattern was
+  tried, so the exact-name path found nothing.
+
+- The fuzzy fallback then matched inside the vision and audio towers,
+  which have their own layer 0 with up/down/gate names, and against
+  per-layer-input tensors: `per_layer_input_gate` matches "gate" but is
+  per_layer_dim wide (256), not FFN wide.
+
+Add the two name forms, and exclude tower/PLE/altup/laurel tensors from
+the fallback so it cannot select a same-named tensor of another shape.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ .../commands/extraction/compile_cmd/detect.rs | 52 +++++++++++++++++++
+ 1 file changed, 52 insertions(+)
+
+diff --git a/crates/larql-cli/src/commands/extraction/compile_cmd/detect.rs b/crates/larql-cli/src/commands/extraction/compile_cmd/detect.rs
+index 16140c61..e7eba13f 100644
+--- a/crates/larql-cli/src/commands/extraction/compile_cmd/detect.rs
++++ b/crates/larql-cli/src/commands/extraction/compile_cmd/detect.rs
+@@ -7,16 +7,43 @@ use ndarray::ArcArray2;
+ pub fn detect_ffn_pattern(tensors: &HashMap<String, ArcArray2<f32>>, component: &str) -> String {
+     let patterns: &[&str] = match component {
+         "gate" => &[
++            // Multimodal Gemma (3/4) nests the text stack under
++            // `model.language_model.`; try it before the plain layout so the
++            // fuzzy fallback never reaches the vision or audio towers.
++            // Loaders strip the `model.language_model.` prefix, so the bare
++            // form is what actually lands in the tensor map; keep the
++            // prefixed variants for loaders that do not strip.
++            "layers.{}.mlp.gate_proj.weight",
++            "model.language_model.layers.{}.mlp.gate_proj.weight",
++            "language_model.layers.{}.mlp.gate_proj.weight",
+             "model.layers.{}.mlp.gate_proj.weight",
+             "layers.{}.ffn.gate.weight",
+             "model.layers.{}.feed_forward.gate_proj.weight",
+         ],
+         "up" => &[
++            // Multimodal Gemma (3/4) nests the text stack under
++            // `model.language_model.`; try it before the plain layout so the
++            // fuzzy fallback never reaches the vision or audio towers.
++            // Loaders strip the `model.language_model.` prefix, so the bare
++            // form is what actually lands in the tensor map; keep the
++            // prefixed variants for loaders that do not strip.
++            "layers.{}.mlp.up_proj.weight",
++            "model.language_model.layers.{}.mlp.up_proj.weight",
++            "language_model.layers.{}.mlp.up_proj.weight",
+             "model.layers.{}.mlp.up_proj.weight",
+             "layers.{}.ffn.up.weight",
+             "model.layers.{}.feed_forward.up_proj.weight",
+         ],
+         "down" => &[
++            // Multimodal Gemma (3/4) nests the text stack under
++            // `model.language_model.`; try it before the plain layout so the
++            // fuzzy fallback never reaches the vision or audio towers.
++            // Loaders strip the `model.language_model.` prefix, so the bare
++            // form is what actually lands in the tensor map; keep the
++            // prefixed variants for loaders that do not strip.
++            "layers.{}.mlp.down_proj.weight",
++            "model.language_model.layers.{}.mlp.down_proj.weight",
++            "language_model.layers.{}.mlp.down_proj.weight",
+             "model.layers.{}.mlp.down_proj.weight",
+             "layers.{}.ffn.down.weight",
+             "model.layers.{}.feed_forward.down_proj.weight",
+@@ -37,7 +64,32 @@ pub fn detect_ffn_pattern(tensors: &HashMap<String, ArcArray2<f32>>, component:
+         "down" => "down",
+         _ => "",
+     };
++    // A multimodal checkpoint carries vision/audio encoder MLPs whose names
++    // also contain "up"/"down"/"gate" and ".0.". Matching one of those sends
++    // every later layer lookup into the wrong stack — e.g. asking for layer 30
++    // yields `vision_tower.encoder.layers.30.mlp.up_proj.linear.weight`, which
++    // does not exist. Only the text stack is a valid target here.
++    const ENCODER_MARKERS: &[&str] = &[
++        // Gemma 4 also carries per-layer embedding gates whose names contain
++        // "gate" and are only `per_layer_dim` wide (256), so a fuzzy match on
++        // "gate" lands there instead of the FFN.
++        "per_layer_input_gate",
++        "per_layer_model_projection",
++        "per_layer_projection",
++        "altup",
++        "laurel",
++        "vision_tower",
++        "audio_tower",
++        "vision_model",
++        "audio_model",
++        "multi_modal_projector",
++        "embed_vision",
++        "embed_audio",
++    ];
+     for key in tensors.keys() {
++        if ENCODER_MARKERS.iter().any(|m| key.contains(m)) {
++            continue;
++        }
+         if key.contains(search) && key.contains(".0.") {
+             return key.replace(".0.", ".{}.");
+         }
+-- 
+2.30.1 (Apple Git-130)
+

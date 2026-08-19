@@ -1,0 +1,60 @@
+From ac51fa0658ced133f7767f87f82ceb88218fb8c5 Mon Sep 17 00:00:00 2001
+From: Forest Bremer <3859379+fbremer@users.noreply.github.com>
+Date: Tue, 18 Aug 2026 15:14:43 -1000
+Subject: [PATCH] gguf: emit layer_types from attention.sliding_window_pattern
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The GGUF carries per-layer attention geometry as a bool array (true =
+sliding window, one entry per block). The HF config carries the same
+thing as the string array `layer_types`, which the config parser already
+reads — but nothing translates between them, so a GGUF-loaded Gemma 4
+falls back to a fixed stride of 6.
+
+That is correct for 12B/26B/31B and wrong for E2B/E4B, which use a
+stride of 5. Every layer whose type is guessed wrong mis-sizes the O
+projection: attn_out is built with head_dim 256 while attn_o expects
+global_head_dim 512. The same data drives per-layer RoPE selection.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ .../larql-models/src/loading/gguf/loader.rs   | 22 +++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/crates/larql-models/src/loading/gguf/loader.rs b/crates/larql-models/src/loading/gguf/loader.rs
+index 6a36fc37..81903940 100644
+--- a/crates/larql-models/src/loading/gguf/loader.rs
++++ b/crates/larql-models/src/loading/gguf/loader.rs
+@@ -347,6 +347,28 @@ impl GgufFile {
+             if let Some(sw) = get_arch_u32_opt("attention.sliding_window").filter(|&v| v > 0) {
+                 config["sliding_window"] = serde_json::json!(sw);
+             }
++            // Per-layer attention geometry. The GGUF carries this as a bool
++            // array (`true` = sliding window, `false` = full attention), one
++            // entry per block; the HF config carries the same thing as the
++            // string array `layer_types`, which the parser already reads.
++            // Without the translation the architecture falls back to a fixed
++            // stride (6), which is wrong for E2B/E4B (stride 5) and mis-sizes
++            // the O projection on every global layer: `attn_out` is built with
++            // head_dim 256 while `attn_o` expects global_head_dim 512.
++            if let Some(GgufValue::Array(pattern)) =
++                self.metadata.get(&format!("{prefix}attention.sliding_window_pattern"))
++            {
++                let layer_types: Vec<serde_json::Value> = pattern
++                    .iter()
++                    .map(|v| match v {
++                        GgufValue::Bool(true) => serde_json::json!("sliding_attention"),
++                        _ => serde_json::json!("full_attention"),
++                    })
++                    .collect();
++                if !layer_types.is_empty() {
++                    config["layer_types"] = serde_json::Value::Array(layer_types);
++                }
++            }
+             // Layers with no attn_v tensor reuse K as V (`attention_k_eq_v`
+             // in the HF config). The GGUF metadata has no flag for this;
+             // detect it from the tensor inventory, as llama.cpp does.
+-- 
+2.30.1 (Apple Git-130)
+

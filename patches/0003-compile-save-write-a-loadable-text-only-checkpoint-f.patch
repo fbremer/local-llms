@@ -1,0 +1,128 @@
+From caa6e266dd58c1a379cfb8bc912478730b552907 Mon Sep 17 00:00:00 2001
+From: Forest Bremer <3859379+fbremer@users.noreply.github.com>
+Date: Tue, 18 Aug 2026 15:15:02 -1000
+Subject: [PATCH 3/3] compile/save: write a loadable text-only checkpoint from
+ a multimodal base
+
+A compiled Gemma 4 E2B checkpoint did not load: transformers reported
+every weight missing and silently random-initialised the model, which
+generates fluent garbage rather than failing.
+
+Three causes, all in the save path:
+
+- Audio/vision tensors were carried into a text-only checkpoint. Extend
+  SKIP_PATTERNS to drop audio_tower/embed_audio/embed_vision alongside
+  the vision entries already there.
+
+- Tensor names were written prefix-stripped, so nothing matched the
+  text config's expected `model.*` keys. Re-prefix on the way out.
+
+- Architecture and model_type were hardcoded to Gemma3ForCausalLM /
+  gemma3_text regardless of the base. Derive both from the detected
+  family.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ .../commands/extraction/compile_cmd/save.rs   | 55 +++++++++++++++----
+ 1 file changed, 45 insertions(+), 10 deletions(-)
+
+diff --git a/crates/larql-cli/src/commands/extraction/compile_cmd/save.rs b/crates/larql-cli/src/commands/extraction/compile_cmd/save.rs
+index d8e49375..4c39a701 100644
+--- a/crates/larql-cli/src/commands/extraction/compile_cmd/save.rs
++++ b/crates/larql-cli/src/commands/extraction/compile_cmd/save.rs
+@@ -17,8 +17,24 @@ pub const SKIP_PATTERNS: &[&str] = &[
+     "multi_modal_projector",
+     "vision_model",
+     "image_projection",
++    // Gemma 4 also ships an audio tower; leaving it in produced a checkpoint
++    // that was neither text-only nor complete — 737 audio tensors beside a
++    // config that no longer described them.
++    "audio_tower",
++    "audio_model",
++    "embed_audio",
++    "embed_vision",
+ ];
+ 
++/// Map an internal (prefix-stripped) tensor key back to the HuggingFace
++/// text-model convention. `lm_head` sits outside the `model.` namespace.
++fn hf_text_key(key: &str) -> String {
++    if key.starts_with("model.") || key.starts_with("lm_head") {
++        return key.to_string();
++    }
++    format!("model.{key}")
++}
++
+ pub struct MergedWeights {
+     pub tensors: HashMap<String, ArcArray2<f32>>,
+     pub vectors: HashMap<String, Vec<f32>>,
+@@ -41,12 +57,22 @@ pub fn merge_for_save(
+         tensors.insert(k, v);
+     }
+ 
++    // The loader strips `model.language_model.` on the way in, so the keys held
++    // here are bare (`layers.30.mlp.up_proj.weight`). A text-only HF checkpoint
++    // expects `model.layers.30.mlp.up_proj.weight`; writing the bare form gives
++    // a file that neither transformers nor llama.cpp can match to an
++    // architecture. Re-prefix anything that lost its wrapper.
++    let mut tensors: HashMap<String, ArcArray2<f32>> = tensors
++        .into_iter()
++        .map(|(k, v)| (hf_text_key(&k), v))
++        .collect();
++
+     let mut vectors: HashMap<String, Vec<f32>> = HashMap::new();
+     for (k, v) in &weights.vectors {
+         if SKIP_PATTERNS.iter().any(|p| k.contains(p)) {
+             continue;
+         }
+-        vectors.insert(k.clone(), v.clone());
++        vectors.insert(hf_text_key(k), v.clone());
+     }
+ 
+     if tensors.contains_key("model.embed_tokens.weight") && tensors.contains_key("lm_head.weight") {
+@@ -143,14 +169,26 @@ pub fn copy_model_config(base: &Path, output: &Path) {
+         return;
+     };
+ 
++    // Derive the family from the source config rather than assuming Gemma 3 —
++    // writing `gemma3_text` into a Gemma 4 checkpoint makes it unloadable.
++    let family = cfg
++        .get("model_type")
++        .and_then(|v| v.as_str())
++        .map(|s| s.split('_').next().unwrap_or(s).to_string())
++        .unwrap_or_else(|| "gemma3".to_string());
++    let causal_arch = match family.as_str() {
++        "gemma4" => "Gemma4ForCausalLM",
++        "gemma3" => "Gemma3ForCausalLM",
++        "gemma2" => "Gemma2ForCausalLM",
++        _ => "Gemma3ForCausalLM",
++    };
++    let text_model_type = format!("{family}_text");
++
+     if let Some(text_cfg) = cfg.get("text_config").cloned() {
+         if let Some(obj) = text_cfg.as_object() {
+             let mut new_cfg = obj.clone();
+-            new_cfg.insert(
+-                "architectures".into(),
+-                serde_json::json!(["Gemma3ForCausalLM"]),
+-            );
+-            new_cfg.insert("model_type".into(), serde_json::json!("gemma3_text"));
++            new_cfg.insert("architectures".into(), serde_json::json!([causal_arch]));
++            new_cfg.insert("model_type".into(), serde_json::json!(text_model_type));
+             new_cfg.insert("tie_word_embeddings".into(), serde_json::json!(true));
+             let _ = std::fs::write(
+                 output.join("config.json"),
+@@ -161,10 +199,7 @@ pub fn copy_model_config(base: &Path, output: &Path) {
+     }
+ 
+     if let Some(obj) = cfg.as_object_mut() {
+-        obj.insert(
+-            "architectures".into(),
+-            serde_json::json!(["Gemma3ForCausalLM"]),
+-        );
++        obj.insert("architectures".into(), serde_json::json!([causal_arch]));
+     }
+     let _ = std::fs::write(
+         output.join("config.json"),
+-- 
+2.30.1 (Apple Git-130)
+
