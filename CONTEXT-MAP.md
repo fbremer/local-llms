@@ -9,6 +9,9 @@
 | Patched LARQL | `github.com/fbremer/larql` branch `gemma4-e2b-fixes` | Canonical (code) | 2026-08-18 | Building the tool |
 | Upstream LARQL | `github.com/chrishayuk/larql` | Canonical (upstream) | live | Checking whether a fix landed |
 | Base weights | `~/.cache/huggingface/hub/models--google--gemma-4-e2b-it` | Canonical (weights) | 2026-08-18 | Any compile |
+| Working 26B vindex | `~/.cache/larql/26b-a4b.vindex` | Canonical (verified working) | 2026-08-18 | Any decoupled-serving run |
+| 26B safetensors | `~/.cache/huggingface/hub/models--google--gemma-4-26B-A4B-it` | Canonical (extract base) | 2026-08-18, 48 GB | Re-extracting |
+| Our patches | `github.com/fbremer/larql` branch `gemma4-e2b-fixes` | **Retired** — written 498 commits stale, untested on main | 2026-08-18 | Only if re-verifying the compile path |
 | Decoupling results | `decoupling/replication-attempt.md` | Canonical (measured here) | 2026-08-18 | Any distributed-serving question |
 | 26B slices (published) | `~/.cache/larql/26b-client`, `26b-server` | Reference (incomplete) | 2026-08-18 | Comparing against our own build |
 | Method | `KIT-METHOD.md` | Supporting | 2026-08-10 | Managing this context set |

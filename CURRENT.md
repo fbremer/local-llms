@@ -7,20 +7,12 @@ and an indexed offline reference for the architecture's real shape.
 
 ## Current state
 
-- Editing works end to end: capture trigger residual → install FFN edge →
-  compile to safetensors → load → verify. Measured on a 2020 M1 MacBook Pro,
-  16 GB.
-- Operating envelope established by sweep (see `editing/`): layer 25 at
-  alpha 0.15 installs a fact at 99.7% with controls untouched; layers 28-32
-  tolerate alpha 0.3-0.6; layer 34 destroys the model; below layer 25 nothing
-  installs.
-- Six defects found and fixed in LARQL, all E2B-specific structure the upstream
-  code was not written against. Fork: `github.com/fbremer/larql`, branch
-  `gemma4-e2b-fixes` (based on upstream PR #181).
-- Architecture facts measured from the model, not quoted: stride-5 layer types,
-  variable FFN width (6144 → 12288 at layer 15), 8×256 / 8×512 head dims,
-  multimodal wrapper with 600 language tensors of 2011, BOS required but not
-  added by the shipped tokenizer config.
+- Knowledge editing on E2B: works, envelope measured, results in `editing/`.
+- Decoupled serving of 26B: works, artifact and numbers below.
+- Canonical extraction is the documented safetensors path. The GGUF route is
+  known-broken for MoE and layer typing.
+- Build from upstream `main`. A PR branch produced multilingual noise on inputs
+  where main produced correct answers.
 
 ## Active decisions
 
@@ -36,25 +28,40 @@ against controls with BOS prepended.
 
 ## Decoupled serving
 
-Mechanism reproduced on one machine: attention local, router local, experts
-remote and sharded across two servers, 3,600 expert invocations for 15 tokens.
-Measurements and the correct MoE invocation: `decoupling/`.
+Works end to end on this machine. Gemma 4 26B-A4B answers correctly with
+attention on Metal locally and all 128 experts served from a separate process:
 
-Not yet working: coherent output. The published 26B slices are incomplete —
-both manifests reference `gate_vectors.bin` and `down_meta.bin` that neither
-repo ships. Building our own vindex from `gemma4:26b` (17 GB, pulling) is the
-route, using the patched extractor.
+    Attention: metal (GPU) local | Router: local | Experts: remote
+    "Explain in three sentences why the sky is blue." → correct Rayleigh
+    scattering answer, 59 tokens, 1.3 tok/s, ~330 KB per token each way.
 
-Throughput measured at 0.6 tok/s with attention on CPU; the reference demo
-reports 24-25 tok/s with attention on GPU, so `--metal` is the first thing to
-change.
+Artifact: `~/.cache/larql/26b-a4b.vindex` (15 GB, q4k, 30 per-layer expert
+files). Built with the canonical process — `larql model pull` then
+`larql extract --quant q4k` from safetensors.
+
+One expert server per machine. Two shard servers on one host duplicate the
+mmap and process overhead for no gain; `--uds-path` removes TCP for same-host
+clients.
+
+The reference demo reports 24 tok/s on different hardware. Ours is not a
+like-for-like comparison and no conclusion should be drawn from the gap yet.
+
+## Extraction: use safetensors, not GGUF
+
+The GGUF route silently drops MoE experts (produces a dense-shaped vindex with
+`moe: None`) and emits no layer-type information, so the architecture falls back
+to a hardcoded stride of 6 — correct for 26B by coincidence, wrong for E2B.
+Verified against upstream main's own binary at PR #269.
 
 ## Open questions
 
-- Does the compiled artifact behave identically to the in-memory install at the
-  same parameters? (Verification interrupted by an I/O timeout; rerun pending.)
-- Serving path: llama.cpp streaming conversion → Q4_K_M → Ollama. Untested.
-- Whether the six fixes are worth offering upstream as a PR.
+- Are the four compile-path fixes still needed on upstream main? They were
+  written against a branch 498 commits stale and have not been re-tested.
+  Until they are, treat the fork branch as retired, not active.
+- Real throughput comparison for decoupled 26B (ours 1.3 tok/s on a 2020 M1;
+  reference 24 tok/s on unstated hardware).
+- Whether a LAN split changes anything, given ~330 KB of residual per token
+  each way.
 
 ## Relationship to OPA
 

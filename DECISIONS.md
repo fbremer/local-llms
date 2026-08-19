@@ -32,3 +32,39 @@ upgrade; episodic recall is impossible. A system prompt covers a stable fact
 core for ~200 cached tokens, and retrieval covers what changes.
 **Revisit when:** a need appears that requires a fact present with zero prompt
 overhead and no retrieval step.
+
+### 2026-08-18 — Build from upstream HEAD, never a PR branch
+
+**Status:** Active
+**Decision:** Reproduce on `upstream/main` first. Only bisect to a branch after
+a failure is confirmed on current code.
+**Reason and evidence:** Work proceeded on `pr181`, fetched while chasing an
+issue-tracker reference. It was **498 commits behind main**. On identical inputs
+— same vindex, same servers, same command — that branch produced multilingual
+noise and main produced the correct answer. Hours of diagnosis, and five
+patches, were spent on behaviour that current code does not exhibit.
+**Rollback path:** None needed; checking `git rev-list --count <branch>..main`
+takes one second.
+
+### 2026-08-18 — Extract via the documented safetensors path
+
+**Status:** Active
+**Decision:** `larql model pull <repo>` then `larql extract <snapshot> --quant q4k`.
+Do not extract from Ollama GGUF blobs.
+**Reason and evidence:** The GGUF converter has no MoE support — it silently
+produced a dense-shaped vindex with `moe: None`, dropping 128 experts × 30
+layers, and emitted no layer types (verified on main's own binary at PR #269),
+so the architecture fell back to a hardcoded stride. The documented path
+produced a correct 15 GB artifact with `layers/` and full MoE config on the
+first attempt.
+**Affected work:** The `layer_types` GGUF patch repairs a path we no longer use.
+
+### 2026-08-18 — One expert server per machine
+
+**Status:** Active
+**Decision:** Serve all experts from a single process per host; shard across
+hosts, not within one.
+**Reason and evidence:** Two shard servers on one machine duplicate the mmap and
+process overhead with no benefit — the demo's 0-63 / 64-127 split models two
+machines. `--uds-path` removes TCP for same-host clients.
+
