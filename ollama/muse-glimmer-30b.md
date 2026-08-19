@@ -47,8 +47,24 @@ auto-conversion instead turns those markers into stop strings, so generation
 halts after ~3 tokens with empty content — which reads as a hardware failure and
 is not. Present in every quant in the repo.
 
-Fix under Ollama: rebuild the stop list as `<|eot|>` and `<|return|>` only.
+Fix under Ollama: set the stop list to Meta's documented pair only —
+`<|end_of_text|>` (200001) and `<|eot|>` (200008). **Never `<|eom|>`**: it ends a
+message, not a turn, and stopping there collapses parallel tool calling.
 Under llama.cpp: no fix needed — see the control below.
+
+Mechanism, confirmed: Ollama does not read a Modelfile from the HF repo. HF
+generates one with `@huggingface/ollama-utils`, which converts the Jinja
+template to a Go template and **derives `PARAMETER stop` from special tokens it
+finds**. Its `CUSTOM_TEMPLATE_MAPPING` has hand-written entries for Gemma2,
+Llama 3, Mistral Small and others, but **none for harmony-style**
+`<|start|>`/`<|message|>`/`<|channel|>` templates. With no mapping, the generic
+converter emits the role markers as stop strings.
+
+This is reported and unresolved upstream: `unsloth/Muse-Glimmer-30B-GGUF`
+discussion #16 reports the identical failure with the same two quants on
+**AMD ROCm/Ubuntu** — different hardware entirely, so it was never a Metal, RAM,
+or wired-limit problem. Unsloth staff say elsewhere their GGUFs "do not 100%
+work in Ollama ... due to potential chat template incompatibility issues".
 
 **Metal OOM from over-eager placement.** Ollama pins ~94% of a 13 GB model to
 GPU and leaves no room for compute buffers. Fix: `num_gpu 52` still lands at
@@ -168,3 +184,32 @@ To recover Ollama's exact invocation for any model, run the server with
 **Why Ollama is still the default here:** GUI integration, model management, and
 automatic memory fitting. The Modelfile rebuild is a workaround for a layer the
 vendor does not target — not a necessity of the model.
+
+## Differential test: the template was never broken
+
+Claim under test: whether Ollama's Jinja→Go template conversion produces a
+different prompt than llama.cpp's native Jinja path — which would degrade
+quality invisibly rather than crash.
+
+Method: same quant (IQ3_XXS), same prompt, `temperature 0`, `top_k 1`,
+`seed 42`, run sequentially (two 12 GB models do not co-reside on 16 GB).
+
+| Path | Tokens | Finish | Content | Reasoning |
+| --- | --- | --- | --- | --- |
+| Ollama tag | 115 | stop | `Paris` | 473 bytes |
+| llama.cpp `--jinja` | 115 | stop | `Paris` | 473 bytes |
+
+**Byte-identical reasoning traces — same MD5 (`f2ad71c7…`).** At greedy decoding
+with matched seeds, identical output means identical input. **The template
+conversion is faithful; only the stop list was ever wrong.**
+
+Consequence: an "Ollama adapter" for this model family is two lines, not a
+template rewrite. Everything else in the local tags — vision strip, `num_gpu`,
+`num_ctx` — is machine-specific tuning, not adapter material.
+
+**Limits of this result.** One prompt, one quant, single-turn, no tool calls.
+Multi-turn and tool-calling exercise template paths this does not touch. And
+both paths may be faithfully reproducing a **stale** template: the embedded one
+is 7,167 chars against the 9,992 Meta documents, and discussion #18 asking
+Unsloth to sync it is open and unanswered. That defect is upstream of Ollama and
+is not addressed by the stop-list fix.
