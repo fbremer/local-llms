@@ -21,9 +21,14 @@ grand means 3.64 / 3.74 / 3.91).
 | `gemma4:e4b` | 9.6 GB | -1.348 | 0.067 | **separated**, t=13.3 |
 | `gemma4:e2b` | 7.2 GB | -2.505 | 0.065 | **separated**, t=20.7 |
 
-**All six muse quants are one indistinguishable block.** No adjacent pair inside
-it resolves (every t < 0.7). Quant choice does not affect summarisation quality
-on this evidence.
+**No ordering of the six muse quants is measurable here — and that is a
+statement about the measurement, not the models.** The minimum difference n=3
+judges could detect is **1.051 z**; the entire spread of the six quants is
+**0.504 z**, or 0.48x that limit. A real ordering twice the width of the whole
+block would still have come back unresolved. Do not read this as "the quants are
+equivalent"; read it as "three judges cannot see a difference this small."
+Resolving whether the block has any internal structure needs ~6 judges; ordering
+adjacent pairs inside it needs ~57.
 
 **All three gemma4 fall below the block, and are ordered among themselves** —
 `12b > e4b > e2b`, both gaps at t > 15. The judges are near-unanimous here
@@ -31,9 +36,13 @@ on this evidence.
 (0.176-0.426). They are precise where the difference is real and imprecise
 where it is not.
 
-One boundary is not clean: the weakest muse (`iq2m`) versus `gemma4:12b` is
-gap 0.550, t=2.23 — above the noise floor but not significant at n=3. The
-*block* sits above `12b`; the weakest member individually does not.
+Two caveats on that separation. The `12b` gap is 1.055 z against a minimum
+detectable difference of 1.051 — **exactly at the limit**. The t=6.5 above uses
+each model's own between-judge SD, which is the more favourable noise estimate;
+against the replicate-derived floor it is marginal. Only `e4b` (1.99x) and
+`e2b` (3.09x) are safely separated. And the weakest muse (`iq2m`) versus `12b`
+is gap 0.550, t=2.23 — the *block* sits above `12b`, the weakest member
+individually does not.
 
 ## The noise floor, measured
 
@@ -83,6 +92,31 @@ different numeric penalties to the same "cannot separate" verdict — converting
 an abstention into a mid-pack score. Rank-averaging and z-averaging produced
 different orderings of the same data here. Normalise the scores; do not average
 the ranks.
+
+## Per-axis: the traces are not where muse wins
+
+Reasoning traces were retained and scored as one of the six axes (they run
+16-68% of each judged document). Decomposing the muse-vs-`gemma4:12b` gap by
+axis:
+
+| Axis | muse mean | `12b` | gap |
+| --- | --- | --- | --- |
+| Task compliance | 4.94 | 3.00 | **+1.94** |
+| Comprehension | 4.56 | 3.33 | **+1.22** |
+| Factual | 3.78 | 3.00 | +0.78 |
+| Calibration | 4.39 | 4.00 | +0.39 |
+| Organisation | 4.06 | 4.00 | +0.06 |
+| **Reasoning (the trace)** | **3.50** | **3.67** | **-0.17** |
+
+**Reasoning is muse's weakest axis of the six, and the only one where `12b`
+beats the whole block.** Including the traces did not advantage muse — muse
+wins on answering what was asked, about the right material. This is the third
+independent arrival at the same result: the philosophy judges found trace
+*tidiness* anti-correlated with answer quality, and no trace in either set
+visibly derived the insight its answer stated.
+
+Practical consequence: a long deliberation trace is not evidence of a good
+answer, and inspecting traces will not predict output quality.
 
 ## The discriminator
 
@@ -158,10 +192,11 @@ than the failures but more certain than the evidence supports.
 
 ## Consequences
 
-**Pick the smallest muse.** The six quants are quality-tied, so choose on size
-and speed: `30b-iq2xxs` at 10.01 GB. Not because it scored highest — its
-first-place finish is inside the noise floor — but because nothing above it in
-size buys anything measurable.
+**Pick the smallest muse.** `30b-iq2xxs` at 10.01 GB — not because it scored
+highest (that finish is well inside the noise floor) and not because the quants
+are proven equivalent (they are not; the test was underpowered), but because
+**no evidence exists that anything larger buys anything.** Absent that evidence,
+size and speed decide. Revisit if a better-powered round finds structure.
 
 **Reasoning models are wrong for structured extraction.** `muse-glimmer` timed
 out at 10 minutes on a JSON detection task because it deliberates for thousands
@@ -180,6 +215,10 @@ load-bearing claim on both tasks.
 
 Two tasks, one domain each, one prompt each, single-turn, no tool calls. n=3
 judges, all the same model family as the reference read.
+
+**Underpowered by design.** n=3 resolves only differences above 1.051 z, and
+everything inside the muse block is below that. The absence of an ordering is a
+null result, not a positive finding of equivalence.
 
 **Throughput was not measured under the final regime.** The tok/s figures from
 the superseded round were taken at 86% offload with a `q8_0` KV cache and do not
