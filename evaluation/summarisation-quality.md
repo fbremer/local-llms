@@ -21,14 +21,16 @@ grand means 3.64 / 3.74 / 3.91).
 | `gemma4:e4b` | 9.6 GB | -1.348 | 0.067 | **separated**, t=13.3 |
 | `gemma4:e2b` | 7.2 GB | -2.505 | 0.065 | **separated**, t=20.7 |
 
-**No ordering of the six muse quants is measurable here — and that is a
-statement about the measurement, not the models.** The minimum difference n=3
-judges could detect is **1.051 z**; the entire spread of the six quants is
-**0.504 z**, or 0.48x that limit. A real ordering twice the width of the whole
-block would still have come back unresolved. Do not read this as "the quants are
-equivalent"; read it as "three judges cannot see a difference this small."
-Resolving whether the block has any internal structure needs ~6 judges; ordering
-adjacent pairs inside it needs ~57.
+**No ordering of the six muse quants is measurable here, because the instrument
+does not work at that resolution.** Inter-judge Spearman *within the muse block*
+is **-0.164** — two of three judge pairs anti-correlate (-0.23, -0.67). On the
+three gemma4 it is **+1.00 for every pair**. The +0.58 agreement over all
+candidates is carried entirely by the three obviously-bad ones; remove them and
+it inverts.
+
+This is not a power problem. Adding judges to a rank instrument with rho = -0.16
+produces a more precise estimate of nothing. Any ordering inside the block —
+including the one this table prints — is an artefact.
 
 **All three gemma4 fall below the block, and are ordered among themselves** —
 `12b > e4b > e2b`, both gaps at t > 15. The judges are near-unanimous here
@@ -92,6 +94,41 @@ different numeric penalties to the same "cannot separate" verdict — converting
 an abstention into a mid-pack score. Rank-averaging and z-averaging produced
 different orderings of the same data here. Normalise the scores; do not average
 the ranks.
+
+## Judge reliability, measured
+
+Three judges scored identical files, so their disagreement is judge
+unreliability with model variation removed.
+
+| Axis | across-judge SD | worst single disagreement |
+| --- | --- | --- |
+| **Factual** | **0.549** | **2 points** |
+| Comprehension | 0.367 | 1 pt |
+| Reasoning | 0.367 | 1 pt |
+| Organisation | 0.262 | 1 pt |
+| Calibration | 0.262 | 1 pt |
+| Task compliance | 0.157 | 1 pt |
+
+**The Factual axis is the noisiest of the six** — the axis that should be purely
+objective. The judges are not checking claims and totalling them; they form an
+impression and back-fill the scores. Judge noise (sigma = 0.211 z) accounts for
+**56%** of the replicate-gap variance previously attributed to run-to-run model
+variation (genuine sigma_run = 0.264 z).
+
+Agreement is 2x better on the gemma4 (SD 0.192) than on the muse quants (0.378):
+the judges see large differences and not small ones.
+
+**But on specific checkable claims the same judges agree almost perfectly**,
+independently and without coordination — the fabricated first-person quote
+attributed to the same two candidates, the inverted mechanic to the same single
+candidate, the film-as-speech failure to the same two. They are reliable at
+*"is claim X in document Y true?"* and unreliable at *"how good is document Y?"*
+
+**The rubric is the broken part, not the judges.** A future round should delete
+the six 1-5 axes and score against a fixed binary ground-truth ledger — a list
+of checkable claims about the source, each candidate marked right or wrong per
+claim. No weighting, no taste, auditable by a human against the transcript. Most
+of that ledger is already extractable from these judges' own error catalogues.
 
 ## Per-axis: the traces are not where muse wins
 
@@ -216,9 +253,11 @@ load-bearing claim on both tasks.
 Two tasks, one domain each, one prompt each, single-turn, no tool calls. n=3
 judges, all the same model family as the reference read.
 
-**Underpowered by design.** n=3 resolves only differences above 1.051 z, and
-everything inside the muse block is below that. The absence of an ordering is a
-null result, not a positive finding of equivalence.
+**The instrument is mis-specified for fine distinctions**, not merely
+underpowered — see "Judge reliability, measured". Every claim here that depends
+on separating two muse quants is unsupported. The claims that survive are the
+gross ones the judges make at rho = +1.00: muse above gemma4, and
+`12b > e4b > e2b`.
 
 **Throughput was not measured under the final regime.** The tok/s figures from
 the superseded round were taken at 86% offload with a `q8_0` KV cache and do not
