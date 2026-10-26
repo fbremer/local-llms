@@ -22,10 +22,10 @@ failed edit, and a name-mismatched checkpoint silently loaded random weights.
 Two false results before the harness was trustworthy.
 **Recorded by:** measured, 2026-08-18.
 
-### 2026-08-18 — This is research, not an OPA feature
+### 2026-08-18 — This is research, not an application feature
 
 **Status:** Active
-**Decision:** Weight editing stays in this repo and out of OPA.
+**Decision:** Weight editing stays in this repo and out of any application.
 **Reason and evidence:** Cost per fact is a calibration plus a multi-minute
 compile; capacity collapses around ~1400 edits; nothing survives a model
 upgrade; episodic recall is impossible. A system prompt covers a stable fact
