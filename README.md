@@ -20,6 +20,7 @@ demo), and running a dense 30B under Ollama.
 | [CURRENT.md](CURRENT.md) | State now, open questions, what is not established |
 | [CONTEXT-MAP.md](CONTEXT-MAP.md) | Where everything lives and which source wins |
 | [DECISIONS.md](DECISIONS.md) | Choices and the evidence behind them |
+| [KIT-METHOD.md](KIT-METHOD.md) | How the working set is kept |
 
 ## The short version
 
@@ -34,7 +35,8 @@ a fact at 99.7% with control prompts untouched. Layer 34 destroys the model.
 Below layer 25 nothing installs at any strength.
 
 Fixes to [LARQL](https://github.com/chrishayuk/larql) for Gemma 4 E2B are in
-[patches/](patches/), ready to apply onto upstream.
+[patches/](patches/). They were checked against upstream `e96275c8` and are held
+for review. They have not been submitted.
 
 ## Scope
 

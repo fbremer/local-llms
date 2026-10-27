@@ -1,5 +1,7 @@
 # Decision history
 
+Active means the protocol is still followed. It does not make the entry's reasons assumptions for the next session. `CURRENT.md` restates the results and the protocols the next session may assume, and lists interpretations that are still hypotheses.
+
 ### 2026-08-18 — Calibrate in memory, compile once
 
 **Status:** Active
@@ -61,17 +63,20 @@ first attempt.
 
 ### 2026-08-18 — One expert server per machine
 
-**Status:** Active
-**Decision:** Serve all experts from a single process per host; shard across
-hosts, not within one.
-**Reason and evidence:** Two shard servers on one machine duplicate the mmap and
-process overhead with no benefit — the demo's 0-63 / 64-127 split models two
-machines. `--uds-path` removes TCP for same-host clients.
+**Status:** Active as an operational decision for this host. Not a result about memory duplication.
+**Operational decision:** On this machine, serve experts 0-127 from one process.
+**Results:**
+- Published slices, two servers (`0-63` and `64-127`), attention on CPU: 0.6 tok/s and incoherent output (`decoupling/replication-attempt.md`). Scope: those slices and CPU attention. The run has no resident-set measurement for the second server.
+- Built vindex, one server, `--experts 0-127`, `--metal`: 1.6 tok/s, server RSS 2.9 GB, file size 15 GB (`decoupling/throughput-controls.md`).
+**Interpretation.** The gap between 15 GB on disk and 2.9 GB resident fits memory-mapping with demand paging: pages are faulted when experts are used. That mechanism was not isolated by a control that forced the rest of the file resident. Missing gate files are a separate interpretation of the incoherent output, described in the replication note as consistent with expert selection running without gate data.
+**Hypothesis, untested.** Two expert servers on the built vindex would each fault only their own expert range, so the resident sets would partition the working set rather than each approach 2.9 GB. The contradicting result would be a combined resident set well above the one-server figure with no extra experts in use. The operating guide states that `--layers` does not fault out-of-range pages. That statement is documentation, not this measurement, and it is not made there for `--experts`.
+**Conjecture, unsupported.** "Two shard servers on one machine duplicate the mmap." No paired resident-set measurement exists for two expert servers on the 15 GB vindex. Do not cite it.
+**Scope.** `--uds-path` is upstream documentation for skipping TCP on a shared machine. It is not a result from these runs.
 
 
 ### 2026-08-19 — Muse-Glimmer-30B runs here; IQ3_XXS is the default
 
-**Status:** Active
+**Status:** Active for fit and context length. Superseded on 2026-08-20 for quality and for IQ3 as the preferred pick. See the decision of that date.
 **Decision:** Run Muse-Glimmer-30B from Unsloth's `UD-IQ3_XXS` (3-bit) as
 `local/muse-glimmer:30b-iq3-text`, text-only, `num_gpu 52`, 64k context. Keep
 `UD-Q2_K_XL` as the long-context option because it alone reaches 128k.
@@ -83,10 +88,8 @@ Q2 3.76 / IQ3 3.52 at 8k; Q2 3.53-3.72 / IQ3 3.12-3.28 at 64k; Q2 2.75-2.80 at
 that figure was an artifact of comparing them at mismatched `num_gpu`. IQ3 buys
 a full extra bit for that. `Q3_K_XL` (12.44 GB) is unusable at 0.60 tok/s — it
 does not fit.
-**Not established:** Output quality at either bit width. Unsloth's "1.0%
-degradation" claim describes their 17 GB variant, not these. Validation here is
-a handful of trivial prompts.
-**Revisit when:** A quality benchmark is run, or the machine gains memory.
+**Quality clause:** Unsettled on this date. Unsloth's "1.0% degradation" claim describes their 17 GB variant, not these. The 2026-08-20 evaluation replaced this clause.
+**Revisit when:** The machine gains memory, for the fit limits below. Quality has its own decision.
 **Rollback path:** Both tags exist; switch by name. Delete either freely.
 
 ### 2026-08-19 — `ollama ps` is not trusted for unload verification
@@ -106,3 +109,20 @@ finds nothing and looks clean.
 process-level verification should be treated as suspect.
 **Revisit when:** Ollama's unload becomes synchronous and observable.
 **Rollback path:** None needed; this is a verification habit, not a change.
+
+### 2026-08-19 — Harmony stop-list fix is not started
+
+**Status:** Not started
+**Decision:** Do not open an upstream pull request until three things exist: a multi-turn and tool-calling differential, confirmation that the entry shape matches `@huggingface/ollama-utils`, and a minimal reproducer someone else can run. The differential already in `ollama/muse-glimmer-30b.md` is single-turn, single-prompt, one quant.
+**Reason and evidence:** That package has no `CUSTOM_TEMPLATE_MAPPING` entry for harmony-style templates, so a harmony GGUF pulled via `hf.co/` emits the model's own role markers as stop strings and halts after about 3 tokens. The template converter itself matched llama.cpp `--jinja` byte for byte on the one prompt tested. The same failure is reported on AMD ROCm in `unsloth/Muse-Glimmer-30B-GGUF` discussion #16. Unsloth's embedded template is 7,167 characters against Meta's documented 9,992. Discussion #18 asks them to sync it. A downstream stop list does not fix that.
+**Trigger:** Start when the missing runs exist, or sooner if another model on this machine hits the same halt.
+**Expiry:** Drop it if upstream lands an equivalent fix, or if harmony-family models stop mattering here.
+
+### 2026-08-20 — Do not rank the Muse quants; pick the smallest
+
+**Status:** Active
+**Decision:** Treat the six Muse quants as unordered. When one Muse tag is needed, pick `muse-glimmer:30b-iq2xxs` (10.01 GB). Among Gemma 4 the order is `12b > e4b > e2b`. Do not use `gemma4:e4b` to interpret.
+**Supersedes:** The quality clause, and IQ3 as the preferred pick, in the 2026-08-19 Muse decision. Fit and context length from that decision still govern what runs.
+**Reason and evidence:** `evaluation/summarisation-quality.md`. Nine models, three judges, two tasks, scores z-normalised within judge. Inside the Muse block, inter-judge Spearman is -0.164. The mean absolute gap between two runs of the same quant is 0.349 z. One judge pair disagrees by 0.89 z on the iq3 replicate, which is larger than the 0.504 z spread of the six Muse quants. On the three Gemma 4 models every judge pair agrees at +1.00. The `12b` gap against the Muse block sits on the detection limit. `e4b` and `e2b` are safely below the block. `e4b` inverted the load-bearing claim on both tasks.
+**Not established:** Two tasks, one domain each, single-turn, no tool calls, three judges from one model family. Throughput under that round's regime was not measured. The philosophy task has no replicate control.
+**Revisit when:** A round can resolve differences inside the Muse block.

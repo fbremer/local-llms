@@ -2,174 +2,74 @@
 
 ## Outcome now
 
-Measured, documented knowledge of what large models actually do on this
-machine: surgical weight editing on Gemma 4 E2B, decoupled serving via LARQL,
-and running a dense 30B under Ollama. Claims are measured here or marked
-unestablished.
+Keep the record accurate. Nothing is in flight.
 
-## Current state
+## Carry-forward rule
 
-- Knowledge editing on E2B: works, envelope measured, results in `editing/`.
-- Decoupled serving of 26B: works, artifact and numbers below.
-- Canonical extraction is the documented safetensors path. The GGUF route is
-  known-broken for MoE and layer typing.
-- Build from upstream `main`. A PR branch produced multilingual noise on inputs
-  where main produced correct answers.
-- The four compile-path fixes are confirmed live on main and are being proposed
-  upstream as two branches. See `tooling/larql-gemma4-fixes.md`.
+The next session may take as assumptions only the results and the protocols in this file.
 
-## Running a 30B under Ollama
+An interpretation that has not survived a test aimed at it is a hypothesis. It is listed under Hypotheses, with the result that would contradict it. It is not the state of the system, not a non-negotiable, and not the reason a protocol is true.
 
-Muse-Glimmer-30B (dense, 52 layers, hidden 6656) runs at ~3.5 tok/s.
-Details: `ollama/muse-glimmer-30b.md`. Machine-level gotchas:
-`ollama/operating-facts.md`.
+A protocol may be followed while its explanation is still a hypothesis. The next session follows the protocol. It does not use the explanation as a premise of a calculation, a design, or a further claim.
 
-- Tags: `local/muse-glimmer:30b-iq3-text` (default, 3-bit, 64k),
-  `30b-q2-text` (reaches 128k), `30b-iq3` (vision). All run bare.
-- `num_gpu` is layers, not cores; offload caps at ~89% regardless of request.
-  Exceeding `iogpu.wired_limit_mb=13312` gives a Metal OOM that loads fine and
-  dies on first decode.
-- Vision costs ~3.9 GB of projector reservation and turns a working text model
-  into a swapping one. One 896x896 image is ~1373 tokens.
-- `ollama ps` is unreliable in both directions. Verify by process table.
+`DECISIONS.md` records choices already made. Active there means the protocol is still followed. It does not promote that entry's reasons into assumptions. Anything the next session may assume is restated here as a result or a protocol.
 
-**Not established:** output quality at 2-bit or 3-bit. Only trivial prompts have
-been checked. The vendor's degradation benchmark describes a larger variant.
+## Results
 
-## Future: upstream the harmony stop-list fix
+Each item is a measurement or a recorded output. The scope is this machine and the run named with it.
 
-Not started. `@huggingface/ollama-utils` has no `CUSTOM_TEMPLATE_MAPPING` entry
-for harmony-style templates, so every harmony GGUF pulled via `hf.co/` gets the
-model's own role markers emitted as stop strings and halts after ~3 tokens. The
-fix is a stop-token override; the template converter itself is verified correct
-(see the differential test in `ollama/muse-glimmer-30b.md`).
+- Summarisation round of 2026-08-20, in `evaluation/summarisation-quality.md`. Inside the Muse block, inter-judge Spearman was -0.164. On the three Gemma 4 models every judge pair was +1.00, and the scores ordered `12b`, then `e4b`, then `e2b`. The mean absolute gap between two runs of the same quant was 0.349 z. The spread of the six Muse quants was 0.504 z. On both tasks in that round, `gemma4:e4b` inverted the load-bearing claim.
+- E2B edit in `editing/`. Layer 25 at alpha 0.15 installed the fact at 99.7% with the control prompts intact. Layer 34 destroyed the model. Below layer 25 the fact did not install. At layer 25, alpha 0.6, the fact stayed near 99% while Paris fell to 28% and Tokyo to 9%. A missing BOS echoed the prompt.
+- One GGUF extract, upstream binary at PR #269, produced `moe: None` and dropped the experts. The safetensors extract produced a 15 GB vindex with the MoE config. See the 2026-08-18 extract entry in `DECISIONS.md`.
+- Decoupled 26B, one server, `--experts 0-127`, `--metal`: 1.6 tok/s, server RSS 2.9 GB of a 15 GB file. Fully local LARQL in that comparison: 0.06 tok/s and a 306 s prefill. `gemma4:26b` under Ollama: 0.95 tok/s, swap to 8.3 GB. Muse-Glimmer at `UD-Q2_K_XL`: 3.16 tok/s. `decoupling/throughput-controls.md`.
+- Two servers on the published slices, attention on CPU: 0.6 tok/s, incoherent output. No resident-set measurement for the pair. `decoupling/replication-attempt.md`.
+- Branch `pr181` was 498 commits behind main. On identical inputs it produced multilingual noise and main produced the correct answer.
+- `ollama ps` reported nothing loaded while `llama-server` processes held memory, and reported a model loaded when no such process existed. `ollama/operating-facts.md`.
+- The patches in `patches/` were checked against upstream `e96275c8` on 2026-08-18. They have not been submitted.
 
-What a credible PR needs beyond what we have:
+## Protocols
 
-- multi-turn and tool-calling differential runs — the current test is
-  single-turn, single-prompt, one quant
-- confirmation the entry shape matches what `ollama-utils` expects
-- a minimal reproducer someone else can run
+Follow these. A sentence here is a procedure, not an explanation.
 
-Evidence already in hand: byte-identical greedy output between Ollama and
-llama.cpp `--jinja`, and an independent report of the same failure on AMD ROCm
-(`unsloth/Muse-Glimmer-30B-GGUF` discussion #16, open, unanswered).
+- Reproduce on upstream HEAD before bisecting a branch.
+- Calibrate an E2B edit in memory, then compile once.
+- Accept an edit only after two same-shaped controls with BOS prepended.
+- Do not edit layer 34 of this E2B checkpoint.
+- Extract this MoE checkpoint with safetensors. Do not use the GGUF extract that dropped the experts.
+- Do not treat `ollama ps` as evidence that a model unloaded. Check the process table for `llama-server`.
+- Keep weight editing out of application code.
+- When one Muse tag is required, use `30b-iq2xxs` until hypothesis 1 has a result. That tag is not, by this protocol, the better model.
+- On this host, serve experts 0-127 from one process until hypothesis 3 has a result.
 
-**Trigger:** attempt it when the multi-turn and tool-calling cases are verified,
-or sooner if this bites another model here. **Expiry:** drop it if upstream
-lands an equivalent fix, or if harmony-family models stop mattering on this
-machine.
+## Hypotheses
 
-Separate and upstream of Ollama: Unsloth's embedded template is 7,167 chars
-against Meta's documented 9,992 — likely stale. Discussion #18 asking them to
-sync is open. Nothing we do downstream fixes that.
+The next session must not use these as assumptions.
 
-## Model choice is settled for summarisation
-
-Blind-judged, three independent judges, unanimous — `evaluation/summarisation-quality.md`:
-muse-iq3 > muse-iq2 > gemma4:12b > gemma4:e4b > gemma4:e2b. Quality is
-inversely correlated with speed; the two fastest produced confident wrong
-analyses. `gemma4:12b` is the value pick at 7.6 GB.
-
-Three consequences that constrain any pipeline built on these:
-
-- Reasoning models are wrong for structured extraction. muse timed out at
-  10 min on a JSON detection task; it deliberates before emitting. Fast
-  extractor for detection, deliberator for synthesis.
-- muse has no audio capability. Anything that must re-listen to a clip is
-  gemma4, regardless of reasoning quality.
-- No model is clean. Blind judging found fabricated quotations, an inverted
-  game mechanic, and an unanswered question promoted to a decision — in
-  otherwise top-ranked outputs. The ranking orders severity, not correctness.
-
-**Not established:** one transcript, one domain, single-turn, no tool calls.
-Ranks 1-3 were close enough that another file could reorder them.
-
-## Active decisions
-
-Fix E2B rather than replicate published results on variants this machine cannot
-host. Calibrate in memory before paying for a compile — but only to choose the
-layer; compile rescales alpha, so flag values do not transfer. Verify every
-edit against two same-shaped control prompts.
-
-## Non-negotiables
-
-Editing requires full-precision weights; a quantized GGUF cannot be the base.
-Never edit the final layer. Never trust an edit that has not been checked
-against controls with BOS prepended.
-
-## Decoupled serving
-
-Works end to end on this machine. Gemma 4 26B-A4B answers correctly with
-attention on Metal locally and all 128 experts served from a separate process:
-
-    Attention: metal (GPU) local | Router: local | Experts: remote
-    "Explain in three sentences why the sky is blue." → correct Rayleigh
-    scattering answer, 59 tokens, 1.3 tok/s, ~330 KB per token each way.
-
-Artifact: `~/.cache/larql/26b-a4b.vindex` (15 GB, q4k, 30 per-layer expert
-files). Built with the canonical process — `larql model pull` then
-`larql extract --quant q4k` from safetensors.
-
-One expert server per machine. Two shard servers on one host duplicate the
-mmap and process overhead for no gain; `--uds-path` removes TCP for same-host
-clients.
-
-The reference demo reports 24 tok/s on different hardware. Ours is not a
-like-for-like comparison and no conclusion should be drawn from the gap.
-
-## Decoupling earns its place on the ladder
-
-Measured 2026-08-19, one prompt, this machine —
-`decoupling/throughput-controls.md`:
-
-| Model | Engine | Decode | Memory |
-| --- | --- | --- | --- |
-| `gemma4:e2b-8k` | Ollama | 19.1 tok/s | ~3 GB |
-| `gemma4:e4b-8k` | Ollama | 9.4 tok/s | ~4 GB |
-| 26B-A4B decoupled | LARQL | 1.6 tok/s | 2.9 GB server, swap flat |
-| `gemma4:26b` | Ollama | 0.95 tok/s | swap to 8.3 GB |
-| 26B-A4B fully local | LARQL | 0.06 tok/s | 306 s prefill |
-
-Against the realistic local alternative for the same weight class
-(`gemma4:26b` on Ollama), decoupled serving is 1.7× faster and costs a fraction
-of the memory. Against LARQL's own local path it is 26× faster. The gain is
-amortisation — HNSW units and inference weights built once at boot rather than
-inside the decode loop — and it needs no second machine.
-
-Cost: ~6× slower than `e4b-8k`. So `e4b` stays the default; 26B becomes
-reachable, not interactive.
-
-Rejected as explanations for our absolute throughput: `--moe-dispatch batch`
-(doubles speed, destroys output; the documented `--moe-predispatch-iters 2`
-remedy consumes the entire gain) and transport (`grpc://` with `--grpc-port`
-and `--uds-path` matched HTTP byte for byte). The bottleneck is the sequential
-per-layer dependency itself, ~21 ms per hop with neither end CPU-saturated.
-
-## Extraction: use safetensors, not GGUF
-
-The GGUF route silently drops MoE experts (produces a dense-shaped vindex with
-`moe: None`) and emits no layer-type information, so the architecture falls back
-to a hardcoded stride of 6 — correct for 26B by coincidence, wrong for E2B.
-Verified against upstream main's own binary at PR #269.
+1. Muse quant size has no summarisation effect that the 2026-08-20 design can detect. Contradicting result: a pre-specified axis on which two Muse quants separate by more than the within-quant run gap. Posed after that round.
+2. `gemma4:e4b` inverts the central claim on tasks like the two already run. Contradicting result: a third task, specified beforehand, on which it preserves that claim. The two inversions are results. This generalisation is not.
+3. Two expert servers on the built vindex would partition the resident set by expert range. Contradicting result: combined RSS well above the one-server 2.9 GB with no additional experts in use. Untested. "A second server duplicates the mapping" is not this hypothesis and is not evidence for it.
+4. The remaining per-layer cost is the sequential wait, about 21 ms, derived from one run. HTTP, gRPC, and a local socket matched, and `--moe-dispatch batch` raised the rate and destroyed the answer, so those two hypotheses are rejected. Contradicting result: a schedule that keeps the arithmetic, removes the per-layer wait, and does not change the rate.
+5. An edit requires a full-precision base, beyond the one converter that dropped MoE tensors. Contradicting result: a quantized base that round-trips an edit and passes the same controls.
+6. The final layer of models in this family cannot take an edit. The result on hand is layer 34 of this E2B. Contradicting result: a final-layer edit on another checkpoint that passes the controls.
+7. The gap between 1.6 and 0.06 tok/s is amortised boot work: the HNSW build, the preload, and the gate cache. Contradicting result: the gap remains in a control that skips that boot work. Untested.
+8. A dense model beats this MoE split when the dense weights fit, and not otherwise. Contradicting result: a dense model that fits and still loses, or one that does not fit and still wins, on this prompt and machine. This is an account of the Q2 row against the 26B rows, not a result of a test aimed at it.
 
 ## Open questions
 
-- Will upstream take the compile-path fixes? Branches are authored and
-  verified; not yet submitted.
-- Whether a LAN split changes anything, given ~330 KB of residual per token
-  each way.
-- Why 21 ms per layer hop, when neither client nor server is CPU-saturated and
-  the transport is not the constraint. This is the whole remaining gap to the
-  reference throughput.
+No hypothesis is stated for these yet.
 
-## Relationship to applications
+- Whether upstream will take the compile-path fixes. Not asked. The copies here match `e96275c8`.
+- Whether a LAN split of experts changes the 1.6 tok/s run. Unmeasured.
+- The harmony stop-list change is not started. The trigger is in `DECISIONS.md`.
 
-None established. Weight editing is a research capability here, not an
-application feature: the prompt covers a stable fact core at trivial cost and retrieval
-covers everything that changes. Recorded so the question is not reopened by
-accident.
+## Approval boundaries
+
+Publishing this repo, pushing, opening an upstream pull request, and sending residuals off this machine.
 
 ## Stop condition
 
-A claim about model behaviour without a control run is not a result.
+Stop when the next action would use a hypothesis in this file as an assumption. A statement about model behaviour is written here as a result only with the control run attached.
+
+## Last updated
+
+2026-10-27. The working set now separates results and protocols from hypotheses, so the next session cannot inherit an interpretation as a premise.

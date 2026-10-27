@@ -18,21 +18,13 @@ safetensors).
 
 ## The finding
 
-**Decoupling is the only sane way to run the 26B class on this machine.**
-Against the realistic local alternative — `gemma4:26b` through Ollama —
-decoupled serving is 1.7× faster *and* costs a fraction of the memory. The
-Ollama run pushed swap to 8.3 GB and tripped the watchdog guarding it; the
-decoupled run left swap flat at ~1.5 GB with the expert server resident in
-2.9 GB. Same weight class, same machine, same prompt.
+**Results.** Against `gemma4:26b` under Ollama, on the same machine and prompt, decoupled serving was 1.7× faster. Ollama swap reached 8.3 GB. The decoupled run left swap near 1.5 GB, with the expert server at 2.9 GB resident. Against fully local LARQL the ratio was 26× (1.6 vs 0.06 tok/s), and that local path spent 306 s prefilling a 38-token prompt. The 1.7× and 26× figures are derived from those rates.
 
-Against the naive LARQL local path it is 26× faster (1.6 vs 0.06 tok/s), and
-that path also pays a 306-second prefill on a 38-token prompt.
+**Methods.** Both processes in the 1.6 tok/s run were on one host.
 
-The gain is amortisation, not distribution. The expert server builds HNSW units
-once at boot (90 units in 4.6 s), pre-loads inference weights, and keeps gate
-caches hot across requests; the monolithic path redoes that inside the decode
-loop. **No second machine is required to collect this** — both processes ran on
-one host.
+**Interpretation, not supported by a later result in this file.** Read off the rows above, decoupling appeared to be the only workable way to run this weight class here. The Q2 result below falls outside that claim.
+
+**Post hoc interpretation.** The decode-rate gap is amortised setup: an HNSW build of 90 units in 4.6 s at boot, weights preloaded, and gate caches kept hot, against a monolithic path that repeats that work inside the decode loop. No control omitted the boot work. Restated as a hypothesis for a later run: if that boot work is skipped, the gap closes. That run has not been done.
 
 ## What it costs against the models we actually run
 
@@ -201,12 +193,11 @@ peak swap 7.5 GB.
 | `gemma4:26b` | Ollama | 0.95 tok/s |
 | 26B-A4B local | LARQL | 0.06 tok/s |
 
-This overturns three claims recorded above. "Decoupling is the only sane way to
-run the 26B class" is false — a dense 30B at Q2 is 2x faster than decoupled
-26B. The 0.28 tok/s SSD-bandwidth floor never applied, because at Q2 the model
-largely fits on GPU and never became I/O-bound; the arithmetic was right and
-the premise was wrong. The dense/sparse rule holds only when the dense model
-does not fit — quantisation, not architecture, decides that.
+**Result.** Muse-Glimmer-30B at `UD-Q2_K_XL` decoded at 3.16 tok/s, about twice the decoupled 26B in the table above.
+
+**Derived value, under an assumption.** 0.28 tok/s divides the dense weight bytes by a cold sequential read rate, assuming the model is not resident and is reread from disk on every token. This Q2 run was largely GPU-resident, so it lies outside that assumption. The division is unchanged.
+
+**Interpretation.** In these runs the dense-versus-sparse contrast showed up when the dense model did not fit, and the quantisation change is what changed the fit. That is an account of these runs, not a general cause.
 
 Q3_K_XL (14 GB) does *not* work: it exceeds the 13312 MB wired limit, spills
 65% to CPU and manages 0.06 tok/s. The usable window on this machine is a quant
