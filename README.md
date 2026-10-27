@@ -1,8 +1,9 @@
-# Local LLM docs
+# Local LLMs on a 16 GB laptop
 
 What large models actually do on a 2020 M1 MacBook Pro, 16 GB — measured rather
 than quoted from documentation. Three threads: editing facts into Gemma 4 E2B's
-weights, decoupled serving via LARQL, and running a dense 30B under Ollama.
+weights, decoupled serving via LARQL (reproducing Chris Hay's decoupled-attention
+demo), and running a dense 30B under Ollama.
 
 ## Index
 
@@ -32,10 +33,10 @@ Knowledge editing works once those are handled. Layer 25 at alpha 0.15 installs
 a fact at 99.7% with control prompts untouched. Layer 34 destroys the model.
 Below layer 25 nothing installs at any strength.
 
-Patched tool: [github.com/fbremer/larql](https://github.com/fbremer/larql),
-branch `gemma4-e2b-fixes`.
+Fixes to [LARQL](https://github.com/chrishayuk/larql) for Gemma 4 E2B are in
+[patches/](patches/), ready to apply onto upstream.
 
 ## Scope
 
-This is research. It is deliberately not wired into anything — see the OPA
-decision in [DECISIONS.md](DECISIONS.md).
+This is research. It is deliberately not wired into any application; see
+[DECISIONS.md](DECISIONS.md).

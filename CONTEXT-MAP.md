@@ -6,7 +6,7 @@
 | Editing envelope | `editing/knowledge-editing-envelope.md` | Canonical (measured sweep) | 2026-08-18 | Choosing layer/alpha |
 | The six defects | `tooling/larql-gemma4-fixes.md` | Canonical (our fixes) | 2026-08-18 | Debugging LARQL on Gemma 4 |
 | Verified pipeline | `tooling/pipeline.md` | Canonical (run end to end) | 2026-08-18 | Running an edit |
-| Patched LARQL | `github.com/fbremer/larql` branch `gemma4-e2b-fixes` | Canonical (code) | 2026-08-18 | Building the tool |
+| Patched LARQL | `patches/` (apply onto upstream `chrishayuk/larql`) | Canonical (code) | 2026-08-18 | Building the tool |
 | Upstream LARQL | `github.com/chrishayuk/larql` | Canonical (upstream) | live | Checking whether a fix landed |
 | Base weights | `~/.cache/huggingface/hub/models--google--gemma-4-e2b-it` | Canonical (weights) | 2026-08-18 | Any compile |
 | Working 26B vindex | `~/.cache/larql/26b-a4b.vindex` | Canonical (verified working) | 2026-08-18 | Any decoupled-serving run |

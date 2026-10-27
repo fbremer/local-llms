@@ -163,10 +163,10 @@ Verified against upstream main's own binary at PR #269.
   the transport is not the constraint. This is the whole remaining gap to the
   reference throughput.
 
-## Relationship to OPA
+## Relationship to applications
 
-None established. Weight editing is a research capability here, not an OPA
-feature: the prompt covers a stable fact core at trivial cost and retrieval
+None established. Weight editing is a research capability here, not an
+application feature: the prompt covers a stable fact core at trivial cost and retrieval
 covers everything that changes. Recorded so the question is not reopened by
 accident.
 
