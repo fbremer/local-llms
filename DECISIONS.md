@@ -117,6 +117,7 @@ process-level verification should be treated as suspect.
 **Reason and evidence:** That package has no `CUSTOM_TEMPLATE_MAPPING` entry for harmony-style templates, so a harmony GGUF pulled via `hf.co/` emits the model's own role markers as stop strings and halts after about 3 tokens. The template converter itself matched llama.cpp `--jinja` byte for byte on the one prompt tested. The same failure is reported on AMD ROCm in `unsloth/Muse-Glimmer-30B-GGUF` discussion #16. Unsloth's embedded template is 7,167 characters against Meta's documented 9,992. Discussion #18 asks them to sync it. A downstream stop list does not fix that.
 **Trigger:** Start when the missing runs exist, or sooner if another model on this machine hits the same halt.
 **Expiry:** Drop it if upstream lands an equivalent fix, or if harmony-family models stop mattering here.
+**Recorded by:** A 2026-10-27 session, moved from the "Future: upstream the harmony stop-list fix" section of `CURRENT.md` (commit `ecaadcb`, 2026-08-19).
 
 ### 2026-08-20 — Do not rank the Muse quants; pick the smallest
 
@@ -126,3 +127,4 @@ process-level verification should be treated as suspect.
 **Reason and evidence:** `evaluation/summarisation-quality.md`. Nine models, three judges, two tasks, scores z-normalised within judge. Inside the Muse block, inter-judge Spearman is -0.164. The mean absolute gap between two runs of the same quant is 0.349 z. One judge pair disagrees by 0.89 z on the iq3 replicate, which is larger than the 0.504 z spread of the six Muse quants. On the three Gemma 4 models every judge pair agrees at +1.00. The `12b` gap against the Muse block sits on the detection limit. `e4b` and `e2b` are safely below the block. `e4b` inverted the load-bearing claim on both tasks.
 **Not established:** Two tasks, one domain each, single-turn, no tool calls, three judges from one model family. Throughput under that round's regime was not measured. The philosophy task has no replicate control.
 **Revisit when:** A round can resolve differences inside the Muse block.
+**Recorded by:** A 2026-10-27 session, from `evaluation/summarisation-quality.md` (2026-08-20). No decision entry was written on 2026-08-20.

@@ -47,5 +47,11 @@ The demo's value is running a model too large to host — 26B against a ~2 GB
 local slice. That requires a second machine holding the expert weights. On one
 machine, decoupling only measures protocol overhead.
 
+**Later result, against the expectation above.** On this machine, with both
+processes on one host, decoupled serving decoded at 1.6 tok/s, against 0.95 tok/s
+for `gemma4:26b` under Ollama and 0.06 tok/s for fully local LARQL
+(`decoupling/throughput-controls.md`). Why that gap exists is still a hypothesis
+there.
+
 The published work is on 26B (MoE) and 31B (dense). Nothing has been
 demonstrated on E2B, which is dense and small enough to run locally anyway.
