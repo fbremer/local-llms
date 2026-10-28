@@ -67,7 +67,7 @@ they were planted for: **raising GPU offload from 86% to 100% bought throughput,
 not quality** — both pairs landed inside the floor.
 
 The two replicate outputs are retained in `judging-eve/evicted/` outside the
-ranking; they cannot be regenerated and are the sole evidence for this section.
+ranking (not published in this repo); they cannot be regenerated and are the sole evidence for this section.
 
 ## Method
 
