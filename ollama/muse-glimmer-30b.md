@@ -24,8 +24,9 @@ No quantizing, compiling, or weight conversion was done locally.
 **Caveat on the vendor's accuracy claim.** Unsloth reports "1.0% degradation
 across 15 benchmarks" for their *K-Quant-17GB* variant. That is not what runs
 here — `IQ3_XXS` at 12.23 GB and `Q2_K_XL` at 11.59 GB are substantially more
-aggressive. No quality benchmark has been run locally; validation is a handful
-of trivial prompts.
+aggressive. A blind comparison that includes these quants is in
+[evaluation/summarisation-quality.md](../evaluation/summarisation-quality.md).
+It did not resolve an ordering among the Muse quants.
 
 ## Ollama's official library does not fit
 

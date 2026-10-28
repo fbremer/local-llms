@@ -17,8 +17,6 @@ Two reasons detection misses on a multimodal Gemma 4 checkpoint:
 
 Add the two name forms, and exclude tower/PLE/altup/laurel tensors from
 the fallback so it cannot select a same-named tensor of another shape.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 ---
  .../commands/extraction/compile_cmd/detect.rs | 52 +++++++++++++++++++
  1 file changed, 52 insertions(+)

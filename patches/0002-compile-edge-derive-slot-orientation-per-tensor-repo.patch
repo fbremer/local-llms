@@ -18,8 +18,6 @@ naming the layer's actual FFN width. That matters here specifically:
 E2B's width is not constant across layers (6144 for L0-14, 12288 for
 L15-34), so a caller picking a slot needs to be told which layer's bound
 it exceeded.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 ---
  .../commands/extraction/compile_cmd/edge.rs   | 95 +++++++++++++------
  1 file changed, 65 insertions(+), 30 deletions(-)

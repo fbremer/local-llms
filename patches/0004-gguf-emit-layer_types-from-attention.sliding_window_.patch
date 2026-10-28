@@ -16,8 +16,6 @@ That is correct for 12B/26B/31B and wrong for E2B/E4B, which use a
 stride of 5. Every layer whose type is guessed wrong mis-sizes the O
 projection: attn_out is built with head_dim 256 while attn_o expects
 global_head_dim 512. The same data drives per-layer RoPE selection.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 ---
  .../larql-models/src/loading/gguf/loader.rs   | 22 +++++++++++++++++++
  1 file changed, 22 insertions(+)

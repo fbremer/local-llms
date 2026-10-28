@@ -1,1 +1,7 @@
 .DS_Store
+
+# Local working set. Not part of the portfolio tree.
+/CURRENT.md
+/CONTEXT-MAP.md
+/DECISIONS.md
+/KIT-METHOD.md

@@ -1,44 +1,35 @@
 # Local LLMs on a 16 GB laptop
 
-What large models actually do on a 2020 M1 MacBook Pro, 16 GB — measured rather
-than quoted from documentation. Three threads: editing facts into Gemma 4 E2B's
-weights, decoupled serving via LARQL (reproducing Chris Hay's decoupled-attention
-demo), and running a dense 30B under Ollama.
+Measurements from a 2020 M1 MacBook Pro with 16 GB of memory. Three threads: writing a fact into Gemma 4 E2B, reproducing a published decoupled-attention demo on Gemma 4 26B, and running a dense 30B model under Ollama.
 
-## Index
+## Results
 
-| Document | Answers |
+**Knowledge edit.** On `google/gemma-4-e2b-it`, layer 25 at alpha 0.15 installed a fact that read back at 99.7 percent, with the Paris and Tokyo controls intact. Layer 34 destroyed unrelated facts and installed nothing. Below layer 25 nothing installed. The sweep is in [editing/e2b-results.md](editing/e2b-results.md).
+
+**Decoupled serving.** This machine ran Chris Hay's LARQL split of Gemma 4 26B, attention local and the feed-forward weights served apart. On one prompt, decoupled decoding was 1.6 tok/s. The same weight class under Ollama was 0.95 tok/s and drove swap to 8.3 GB. His published speeds are his, measured on his hardware. The local ladder is in [decoupling/throughput-controls.md](decoupling/throughput-controls.md).
+
+**A 30B model under Ollama.** A 3-bit-class quant of Muse-Glimmer-30B ran at about 3.5 tok/s. Provenance, the stop list, and the memory cost of the vision projector are in [ollama/muse-glimmer-30b.md](ollama/muse-glimmer-30b.md).
+
+**Blind comparison, 20 August 2026.** Nine local models, three judges, two tasks. No ordering of the six Muse quants was measurable, because the judges did not agree inside that block. The three Gemma 4 models ordered 12B, then E4B, then E2B. This round replaces an earlier five-model ranking. The write-up is [evaluation/summarisation-quality.md](evaluation/summarisation-quality.md).
+
+## Patches
+
+`patches/` holds local fixes for compiling Gemma 4 E2B in [LARQL](https://github.com/chrishayuk/larql). They were checked against upstream `e96275c8`. They have not been submitted. [tooling/larql-gemma4-fixes.md](tooling/larql-gemma4-fixes.md) describes six defects. One of them, a missing BOS token during verification, is already covered by upstream pull request 178.
+
+## Notes
+
+| Document | What it records |
 | --- | --- |
-| [architecture/e2b-shape.md](architecture/e2b-shape.md) | Layer count, head dims, the stride-5 layer types, variable FFN width, the multimodal wrapper, why BOS is mandatory |
-| [editing/knowledge-editing-envelope.md](editing/knowledge-editing-envelope.md) | Which layers accept an edit, how much force each needs, where leakage starts, which layer destroys the model |
-| [tooling/larql-gemma4-fixes.md](tooling/larql-gemma4-fixes.md) | Six defects that block E2B in LARQL, with mechanism and fix |
-| [tooling/pipeline.md](tooling/pipeline.md) | The verified end-to-end recipe, including the memory costs of each step |
-| [evaluation/summarisation-quality.md](evaluation/summarisation-quality.md) | Which local model summarises well, blind-judged; the errors sighted review misses |
-| [ollama/muse-glimmer-30b.md](ollama/muse-glimmer-30b.md) | Provenance, quant comparison, working tags, why vision costs 4 GB |
-| [ollama/operating-facts.md](ollama/operating-facts.md) | `ollama ps` lies, orphaned runners, `num_gpu`, blob duplication, how to measure |
-| [decoupling/throughput-controls.md](decoupling/throughput-controls.md) | Decoupled vs local, sparse vs dense, the ladder on this machine |
-| [CURRENT.md](CURRENT.md) | State now, open questions, what is not established |
-| [CONTEXT-MAP.md](CONTEXT-MAP.md) | Where everything lives and which source wins |
-| [DECISIONS.md](DECISIONS.md) | Choices and the evidence behind them |
-| [KIT-METHOD.md](KIT-METHOD.md) | How the working set is kept |
+| [architecture/e2b-shape.md](architecture/e2b-shape.md) | Why E2B is the structural outlier in the Gemma 4 family |
+| [editing/knowledge-editing-envelope.md](editing/knowledge-editing-envelope.md) | Which layers accept an edit, and where the controls break |
+| [editing/e2b-results.md](editing/e2b-results.md) | The measured edit and the controls |
+| [tooling/larql-gemma4-fixes.md](tooling/larql-gemma4-fixes.md) | The six defects, with mechanism |
+| [tooling/pipeline.md](tooling/pipeline.md) | The end-to-end edit recipe and its memory cost |
+| [evaluation/summarisation-quality.md](evaluation/summarisation-quality.md) | The blind comparison and its noise floor |
+| [ollama/muse-glimmer-30b.md](ollama/muse-glimmer-30b.md) | The 30B quant: provenance, tags, vision cost |
+| [ollama/operating-facts.md](ollama/operating-facts.md) | How to measure Ollama on this machine |
+| [decoupling/throughput-controls.md](decoupling/throughput-controls.md) | Decoupled and local rates on one prompt |
+| [sources/decoupled-attention.md](sources/decoupled-attention.md) | What Chris Hay demonstrated, in his numbers |
+| [patches/](patches/) | Local LARQL patches, not submitted |
 
-## The short version
-
-Gemma 4 E2B is the structural outlier of its family: attention geometry
-alternates at stride 5, FFN width doubles at layer 15, the checkpoint is a
-multimodal wrapper where only 600 of 2,011 tensors are the language model, and
-the shipped tokenizer config omits the BOS the model requires. Tooling written
-against the larger Gemma 4 variants breaks on all four.
-
-Knowledge editing works once those are handled. Layer 25 at alpha 0.15 installs
-a fact at 99.7% with control prompts untouched. Layer 34 destroys the model.
-Below layer 25 nothing installs at any strength.
-
-Fixes to [LARQL](https://github.com/chrishayuk/larql) for Gemma 4 E2B are in
-[patches/](patches/). They were checked against upstream `e96275c8` and are held
-for review. They have not been submitted.
-
-## Scope
-
-This is research. It is deliberately not wired into any application; see
-[DECISIONS.md](DECISIONS.md).
+This is a research record. It is not an application, and the patches are not an upstream contribution.

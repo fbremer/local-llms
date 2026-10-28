@@ -169,7 +169,7 @@ real option.
 
 ## Provenance
 
-All numbers from `~/src/larql-fork` at `caa6e266` (`gemma4-compile-fixes-v2`).
+All numbers from a local LARQL checkout at `caa6e266` (`gemma4-compile-fixes-v2`).
 Those patches are compile-path only and should not affect serving, but this has
 not been controlled: a clean upstream build and one re-measure would make these
 figures portable.

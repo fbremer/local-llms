@@ -1,10 +1,9 @@
 # LARQL patches — Gemma 4 E2B compile path
 
 Held here for review, not submitted. Apply with `git am 000*.patch` onto
-`chrishayuk/larql` main (verified against e96275c8, PR #269). 0001-0003 are the
+`chrishayuk/larql` main (checked against e96275c8, PR #269). 0001-0003 are the
 compile path and belong together; 0004 is an unrelated GGUF fix, separate on
-purpose. Live branches: `~/src/larql-fork` `gemma4-compile-fixes-v2` and
-`gguf-gemma4-layer-types`.
+purpose.
 
 The text below is drafted as an upstream submission if that is ever wanted.
 
