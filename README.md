@@ -1,5 +1,7 @@
 # Local LLMs on a 16 GB laptop
 
+By Forest Bremer, 2026. The work was done with AI coding assistants, as the commit trailers show, and the judges in the blind comparison were AI models, not people.
+
 Measurements from a 2020 M1 MacBook Pro with 16 GB of memory. Three threads: writing a fact into Gemma 4 E2B, reproducing a published decoupled-attention demo on Gemma 4 26B, and running a dense 30B model under Ollama.
 
 ## Results
@@ -10,7 +12,7 @@ Measurements from a 2020 M1 MacBook Pro with 16 GB of memory. Three threads: wri
 
 **A 30B model under Ollama.** A 3-bit-class quant of Muse-Glimmer-30B ran at about 3.5 tok/s. Provenance, the stop list, and the memory cost of the vision projector are in [ollama/muse-glimmer-30b.md](ollama/muse-glimmer-30b.md).
 
-**Blind comparison, 20 August 2026.** Nine local models, three judges, two tasks. No ordering of the six Muse quants was measurable, because the judges did not agree inside that block. The three Gemma 4 models ordered 12B, then E4B, then E2B. This round replaces an earlier five-model ranking. The write-up is [evaluation/summarisation-quality.md](evaluation/summarisation-quality.md).
+**Blind comparison, 20 August 2026.** Nine local models, three AI judges, two tasks. No ordering of the six Muse quants was measurable, because the judges did not agree inside that block. The three Gemma 4 models ordered 12B, then E4B, then E2B. This round replaces the five-model ranking of 19 August (commit `5c64c0a`: three judges, one identical ranking). The write-up is [evaluation/summarisation-quality.md](evaluation/summarisation-quality.md).
 
 ## Patches
 
